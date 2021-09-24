@@ -37,6 +37,7 @@ def nms(boxes, scores, iou_threshold):
 
 def batched_nms(boxes, scores, idxs, iou_threshold):
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
+
     """
     Performs non-maximum suppression in a batched fashion.
 

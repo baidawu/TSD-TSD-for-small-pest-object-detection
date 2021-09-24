@@ -50,7 +50,7 @@ class VOCDataSet(Dataset):
         with open(xml_path,encoding='utf-8') as fid:
             xml_str = fid.read()
         xml = etree.fromstring(xml_str.encode('utf-8'))
-        data = self.parse_xml_to_dict(xml)["annotation"]
+        data = self.parse_xml_to_dict(xml)["annotation"] # 读取的标注数据
 
         img_path = os.path.join(self.img_root, "{0}.jpg".format(data["filename"]) )
         image = Image.open(img_path)
@@ -73,7 +73,8 @@ class VOCDataSet(Dataset):
                 continue
             
             boxes.append([xmin, ymin, xmax, ymax])
-            labels.append(self.class_dict[obj["name"]]) # 这里的name是目标的类别1 2 3 4等
+            # labels.append(self.class_dict[obj["name"]]) # 这里的name是目标的类别1 2 3 4等
+            labels.append(int(obj["name"])) # xml文件中的obj["name"]即为类别1，2，3，4；直接用其作为label
             if "difficult" in obj:
                 iscrowd.append(int(obj["difficult"]))
             else:
@@ -94,9 +95,10 @@ class VOCDataSet(Dataset):
         targets = torch.as_tensor(targets)
         # targets: tensor([0, 1, 2, 3])
         """
-        le = preprocessing.LabelEncoder()
-        targets = le.fit_transform(labels)
-        labels = torch.as_tensor(targets)   # 将字符串列表转换为张量
+        # le = preprocessing.LabelEncoder()
+        # targets = le.fit_transform(labels)
+        # labels = torch.as_tensor(targets)   # 将字符串列表转换为张量
+        labels = torch.as_tensor(labels, dtype=torch.int64)
 
         iscrowd = torch.as_tensor(iscrowd, dtype=torch.int64)
         image_id = torch.tensor([idx])
@@ -104,7 +106,7 @@ class VOCDataSet(Dataset):
 
         target = {}
         target["boxes"] = boxes
-        target["labels"] = labels
+        target["labels"] = labels  # target[label]为类别1，2，3，4
         target["image_id"] = image_id
         target["area"] = area
         target["iscrowd"] = iscrowd
@@ -179,15 +181,18 @@ class VOCDataSet(Dataset):
             ymin = float(obj["bndbox"]["ymin"])
             ymax = float(obj["bndbox"]["ymax"])
             boxes.append([xmin, ymin, xmax, ymax])
-            labels.append(self.class_dict[obj["name"]])
+
+            # labels.append(self.class_dict[obj["name"]])
+            labels.append(int(obj["name"]))
             iscrowd.append(int(obj["difficult"]))
 
         # convert everything into a torch.Tensor
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        le = preprocessing.LabelEncoder()
-        targets = le.fit_transform(labels)
-        labels = torch.as_tensor(targets)  # 将字符串列表转换为张量
-        #labels = torch.as_tensor(labels, dtype=torch.int64)
+        # le = preprocessing.LabelEncoder()
+        # targets = le.fit_transform(labels)
+        # labels = torch.as_tensor(targets)  # 将字符串列表转换为张量
+        labels = torch.as_tensor(labels, dtype=torch.int64)
+
         iscrowd = torch.as_tensor(iscrowd, dtype=torch.int64)
         image_id = torch.tensor([idx])
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
@@ -273,6 +278,84 @@ class VOCDataSet(Dataset):
 	"Plutella xylostella": 14,
    "Melahotus": 37
 }   
+
+{
+    "1":"Rice planthopper",
+    "15":"Spodoptera cabbage",
+    "2":"Rice Leaf Roller",
+    "16":"Scotogramma trifolii Rottemberg",
+    "3": "Chilo suppressalis",
+    "24": "Yellow tiger",
+    "5": "Armyworm",
+    "25": "Land tiger" ,
+	"6": "Bollworm",
+    "28": "Eight-character tiger",
+	"7": "Meadow borer",
+    "29": "Holotrichia oblita",
+	"8": "Athetis lepigone",
+    "31": "Holotrichia parallela",
+	"10": "Spodoptera litura",
+    "32": "Anomala corpulenta",
+    "11": "Spodoptera exigua",
+    "34": "Gryllotalpa orientalis",
+	"12": "Stem borer",
+    "35": "Nematode trench",
+	"13": "Little Gecko",
+    "36": "Agriotes fuscicollis Miwa",
+	"14": "Plutella xylostella",
+    "37": "Melahotus"
+}
+
+{
+    "aeroplane": 1,
+    "bicycle": 2,
+    "bird": 3,
+    "boat": 4,
+    "bottle": 5,
+    "bus": 6,
+    "car": 7,
+    "cat": 8,
+    "chair": 9,
+    "cow": 10,
+    "diningtable": 11,
+    "dog": 12,
+    "horse": 13,
+    "motorbike": 14,
+    "person": 15,
+    "pottedplant": 16,
+    "sheep": 17,
+    "sofa": 18,
+    "train": 19,
+    "tvmonitor": 20
+}
+
+{
+    "Rice planthopper": 1,
+    "Spodoptera cabbage",15,
+    "Rice Leaf Roller":2,
+    "Scotogramma trifolii Rottemberg":16,
+    "Chilo suppressalis":3,
+    "Yellow tiger":24 ,
+     "Armyworm":5,
+    "Land tiger":25,
+	"Bollworm":6,
+    "Eight-character tiger":28,
+	"Meadow borer":7,
+    "Holotrichia oblita":29,
+	"Athetis lepigone":8,
+    "Holotrichia parallela":31,
+	"Spodoptera litura":10,
+    "Anomala corpulenta":32,
+    "Spodoptera exigua":11,
+    "Gryllotalpa orientalis":34,
+	"Stem borer":12,
+    "Nematode trench":35,
+	"Little Gecko":13,
+    "Agriotes fuscicollis Miwa":36,
+	"Plutella xylostella":14,
+    "Melahotus":37 
+}
+
  
 
 """

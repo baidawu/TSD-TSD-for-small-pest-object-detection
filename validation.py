@@ -35,8 +35,11 @@ def summarize(self, catId=None):
         mind = [i for i, mDet in enumerate(p.maxDets) if mDet == maxDets]
 
         if ap == 1:
-            # dimension of precision: [TxRxKxAxM]
+            # dimension of precision: [TxRxKxAxM] 如何增加k的长度[10,101,24,4,3]-->[10,101,38,4,3]
             s = self.eval['precision']
+            # print(s.shape)
+            s.resize((10,101,38,4,3),refcheck=False)
+            # print(s.shape)
             # IoU
             if iouThr is not None:
                 t = np.where(iouThr == p.iouThrs)[0]
@@ -48,8 +51,11 @@ def summarize(self, catId=None):
                 s = s[:, :, :, aind, mind]
 
         else:
-            # dimension of recall: [TxKxAxM]
+            # dimension of recall: [TxKxAxM] 如何增加k的长度[10,24,4,3]-->[10,38,4,3]
             s = self.eval['recall']
+            # print(s.shape)
+            s.resize((10, 38, 4, 3), refcheck=False)
+            # print(s.shape)
             if iouThr is not None:
                 t = np.where(iouThr == p.iouThrs)[0]
                 s = s[t]
@@ -103,8 +109,8 @@ def main(parser_data):
     json_file = open(label_json_path, 'r')
     class_dict = json.load(json_file)
     json_file.close()
-    # category_index = {v: k for k, v in class_dict.items()} # k 序号 v 名称
-    category_index = {k: v for k, v in class_dict.items()} # k 序号 v 名称
+    category_index = {v: k for k, v in class_dict.items()} # v 序号 k 名称
+    # category_index = {k: v for k, v in class_dict.items()} # k 序号 v 名称
     print(category_index)
 
     VOC_root = parser_data.data_path
@@ -170,12 +176,12 @@ def main(parser_data):
 
     # calculate voc info for every classes(IoU=0.5)
     voc_map_info_list = []
-    # for i in range(len(category_index)):
-    #    stats, _ = summarize(coco_eval, catId=i)
-    #    # voc_map_info_list.append(" {:15}: {}".format(category_index[i + 1], stats[1]))
-    #    voc_map_info_list.append(" {:15}: {}".format(category_index[i + 1], stats[1]))
 
-    for k,v in category_index.items():
+    # for i in range(len(category_index)):
+    #     stats, _ = summarize(coco_eval, catId=i)
+    #     voc_map_info_list.append(" {:15}: {}".format(category_index[i + 1], stats[1]))
+
+    for k,v in category_index.items(): # k 序号 v 名称
         # stats, _ = summarize(coco_eval, catId=int(k))
         # voc_map_info_list.append(" {:15}: {}".format(category_index[i + 1], stats[1]))
         stats, _ = summarize(coco_eval, catId=k)
@@ -203,8 +209,8 @@ if __name__ == "__main__":
     # 使用设备类型
     parser.add_argument('--device', default='cuda', help='device')
 
-    # 检测目标类别数
-    parser.add_argument('--num-classes', type=int, default='24', help='number of classes')
+    # 检测目标类别数 检测目标类别数(不包含背景) 24类害虫，但index到了37
+    parser.add_argument('--num-classes', type=int, default='37', help='number of classes')
 
     # 数据集的根目录(VOCdevkit)
     parser.add_argument('--data-path', default='./', help='dataset root')

@@ -1,39 +1,39 @@
 COCO results:
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.028
- Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.049
- Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.029
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.023
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.038
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.000
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.025
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.112
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.154
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.146
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.187
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.000
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.141
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.431
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.005
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.084
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.171
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.040
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.128
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.234
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.255
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.187
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.274
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.040
 
 mAP(IoU=0.5) for each category:
- Rice planthopper: 0.04924630765534047
- Spodoptera cabbage: 0.04924630765534047
- Rice Leaf Roller: 0.04924630765534047
- Scotogramma trifolii Rottemberg: 0.04924630765534047
- Chilo suppressalis: 0.04924630765534047
- Yellow tiger   : 0.04924630765534047
- Armyworm       : 0.04924630765534047
- Land tiger     : 0.04924630765534047
- Bollworm       : 0.04924630765534047
- Eight-character tiger: 0.04924630765534047
- Meadow borer   : 0.04924630765534047
- Holotrichia oblita: 0.04924630765534047
- Athetis lepigone: 0.04924630765534047
- Holotrichia parallela: 0.04924630765534047
- Spodoptera litura: 0.04924630765534047
- Anomala corpulenta: 0.04924630765534047
- Spodoptera exigua: 0.04924630765534047
- Gryllotalpa orientalis: 0.04924630765534047
- Stem borer     : 0.04924630765534047
- Nematode trench: 0.04924630765534047
- Little Gecko   : 0.04924630765534047
- Agriotes fuscicollis Miwa: 0.04924630765534047
- Plutella xylostella: 0.04924630765534047
- Melahotus      : 0.04924630765534047
+ Rice planthopper: 0.3718424226206081
+ Spodoptera cabbage: 0.3571356729141883
+ Rice Leaf Roller: 0.5032999764618127
+ Scotogramma trifolii Rottemberg: 0.489252303510873
+ Chilo suppressalis: 0.3513226735478672
+ Yellow tiger   : 0.5039770349010635
+ Armyworm       : 0.35919784372332275
+ Land tiger     : 0.35911356368094466
+ Bollworm       : 0.5148107954600051
+ Eight-character tiger: 0.5115124610976054
+ Meadow borer   : 0.35531891665723764
+ Holotrichia oblita: 0.35355393903725546
+ Athetis lepigone: 0.5066591695590621
+ Holotrichia parallela: 0.3601209488298041
+ Spodoptera litura: 0.5157987204477493
+ Anomala corpulenta: 0.5085138964593728
+ Spodoptera exigua: 0.3568150942067977
+ Gryllotalpa orientalis: 0.5200120700250618
+ Stem borer     : 0.5081040156187233
+ Nematode trench: 0.3603815629516384
+ Little Gecko   : 0.34463497464324894
+ Agriotes fuscicollis Miwa: 0.5133354700368011
+ Plutella xylostella: 0.5198707131461612
+ Melahotus      : 0.3485085023559983

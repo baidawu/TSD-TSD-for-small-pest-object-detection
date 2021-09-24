@@ -13,7 +13,7 @@ def convert_to_coco_api(ds):
     for img_idx in range(len(ds)):
         # find better way to get target
         hw, targets = ds.coco_index(img_idx)
-        image_id = targets["image_id"].item()
+        image_id = targets["image_id"].item() #idx=img_idx索引 image_id = torch.tensor([idx]) target["image_id"] = image_id
         img_dict = {}
         img_dict['id'] = image_id
         img_dict['height'] = hw[0]

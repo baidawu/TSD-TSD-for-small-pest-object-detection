@@ -49,7 +49,7 @@ def main():
     print("using {} device.".format(device))
 
     # create model
-    model = create_model(num_classes=25) # 24类+背景
+    model = create_model(num_classes=38) # 24类+背景
 
     # load train weights
     train_weights = "./save_weights/resNetFpn-model-14.pth"
