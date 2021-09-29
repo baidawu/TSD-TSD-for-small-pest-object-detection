@@ -232,14 +232,15 @@ class RPNHead(nn.Module):
                 torch.nn.init.normal_(layer.weight, std=0.01)
                 torch.nn.init.constant_(layer.bias, 0)
 
+    # x 由backbone生成的预测特征层
     def forward(self, x):
         # type: (List[Tensor]) -> Tuple[List[Tensor], List[Tensor]]
         logits = []
         bbox_reg = []
         for i, feature in enumerate(x):
             t = F.relu(self.conv(feature))
-            logits.append(self.cls_logits(t))
-            bbox_reg.append(self.bbox_pred(t))
+            logits.append(self.cls_logits(t)) # 目标分数预测器
+            bbox_reg.append(self.bbox_pred(t)) # 目标bbpx 回归预测器
         return logits, bbox_reg
 
 

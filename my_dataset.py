@@ -32,7 +32,7 @@ class VOCDataSet(Dataset):
         for xml_path in self.xml_list:
             assert os.path.exists(xml_path), "not found '{}' file.".format(xml_path)
 
-        # read class_indict
+        # read class_indict 解析json文件
         json_file = './pascal_voc_classes.json'
         assert os.path.exists(json_file), "{} file not exist.".format(json_file)
         json_file = open(json_file, 'r')
@@ -102,7 +102,7 @@ class VOCDataSet(Dataset):
 
         iscrowd = torch.as_tensor(iscrowd, dtype=torch.int64)
         image_id = torch.tensor([idx])
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0]) # 面积
 
         target = {}
         target["boxes"] = boxes
@@ -116,7 +116,7 @@ class VOCDataSet(Dataset):
 
         return image, target
 
-    def get_height_and_width(self, idx):
+    def get_height_and_width(self, idx): # 图片的高度和宽度
         # read xml
         xml_path = self.xml_list[idx]
         with open(xml_path,encoding='utf-8') as fid:
@@ -173,8 +173,8 @@ class VOCDataSet(Dataset):
         # if image.format != "JPEG":
         #     raise ValueError("Image format not JPEG")
         boxes = []
-        labels = []
-        iscrowd = []
+        labels = [] # labels存储的是类别的索引值1，2，3，4，而并非类别本身
+        iscrowd = [] # 若iscrowd为0，则表示为单目标，较好检测
         for obj in data["object"]:
             xmin = float(obj["bndbox"]["xmin"])
             xmax = float(obj["bndbox"]["xmax"])
@@ -194,8 +194,8 @@ class VOCDataSet(Dataset):
         labels = torch.as_tensor(labels, dtype=torch.int64)
 
         iscrowd = torch.as_tensor(iscrowd, dtype=torch.int64)
-        image_id = torch.tensor([idx])
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        image_id = torch.tensor([idx]) # idx当前数据对应的索引值
+        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0]) # 面积
 
         target = {}
         target["boxes"] = boxes
@@ -224,6 +224,7 @@ class VOCDataSet(Dataset):
 #     json_file = open('./pascal_voc_classes.json', 'r')
 #     class_dict = json.load(json_file)
 #     category_index = {v: k for k, v in class_dict.items()}
+#     # category_index = {k: v for k, v in class_dict.items()}
 # except Exception as e:
 #     print(e)
 #     exit(-1)

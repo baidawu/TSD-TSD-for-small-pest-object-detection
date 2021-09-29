@@ -39,7 +39,7 @@ def plot_map(mAP):
         plt.title('Eval mAP')
         plt.xlim(0, len(mAP))
         plt.legend(loc='best')
-        plt.savefig('./mAP.png')
+        plt.savefig('./mAP{}.png'.format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S")))
         plt.close()
         print("successful save mAP curve!")
     except Exception as e:

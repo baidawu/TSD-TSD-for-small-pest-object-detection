@@ -71,6 +71,8 @@ def summarize(self, catId=None):
             mean_s = np.mean(s[s > -1])
 
         print_string = iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s)
+        # print(print_string)
+        # print("\n*********")
         return mean_s, print_string
 
     stats, print_list = [0] * 12, [""] * 12
@@ -91,7 +93,8 @@ def summarize(self, catId=None):
 
     if not self.eval:
         raise Exception('Please run accumulate() first')
-
+    # print(print_info)
+    # print("&&&&&&\n")
     return stats, print_info
 
 
@@ -107,9 +110,9 @@ def main(parser_data):
     label_json_path = './pascal_voc_classes.json'
     assert os.path.exists(label_json_path), "json file {} dose not exist.".format(label_json_path)
     json_file = open(label_json_path, 'r')
-    class_dict = json.load(json_file)
+    class_dict = json.load(json_file) # 解析json文件{k:v} v索引 k名称
     json_file.close()
-    category_index = {v: k for k, v in class_dict.items()} # v 序号 k 名称
+    category_index = {v: k for k, v in class_dict.items()} # k 序号 v 名称
     # category_index = {k: v for k, v in class_dict.items()} # k 序号 v 名称
     print(category_index)
 
@@ -188,7 +191,10 @@ def main(parser_data):
         voc_map_info_list.append(" {:15}: {}".format(v, stats[1]))
 
     print_voc = "\n".join(voc_map_info_list)
+    print(print_coco)
+    print("****\n")
     print(print_voc)
+
 
     # 将验证结果保存至txt文件中
     with open("record_mAP.txt", "w") as f:

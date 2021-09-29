@@ -3,9 +3,12 @@ from typing import Optional, List, Dict, Tuple
 import torch
 from torch import Tensor
 import torch.nn.functional as F
+from loss import FocalLoss
 
 from . import det_utils
 from . import boxes as box_ops
+
+
 
 
 def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
@@ -24,17 +27,30 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
         box_loss (Tensor)
     """
 
+    # labels = torch.cat(labels, dim=0)
+    # regression_targets = torch.cat(regression_targets, dim=0)
     labels = torch.cat(labels, dim=0)
     regression_targets = torch.cat(regression_targets, dim=0)
 
     # 计算类别损失信息
-    classification_loss = F.cross_entropy(class_logits, labels)
+    # classification_loss = F.cross_entropy(class_logits, labels)
+
+    # 计算损失
+    # 将CE损失改为focal loss损失
+    # print(class_logits.shape)
+    N, num_classes = class_logits.shape
+    fl = FocalLoss(class_num=num_classes,gamma=2,alpha=0.25)
+    # print(class_logits.dim(),labels.dim())
+    classification_loss = fl(class_logits,labels)
+
+
 
     # get indices that correspond to the regression targets for
     # the corresponding ground truth labels, to be used with
     # advanced indexing
     # 返回标签类别大于0的索引
     # sampled_pos_inds_subset = torch.nonzero(torch.gt(labels, 0)).squeeze(1)
+    # sampled_pos_inds_subset = torch.where(torch.gt(labels, 0))[0]
     sampled_pos_inds_subset = torch.where(torch.gt(labels, 0))[0]
 
     # 返回标签类别大于0位置的类别信息
@@ -391,6 +407,7 @@ class RoIHeads(torch.nn.Module):
         if self.training:
             assert labels is not None and regression_targets is not None
             loss_classifier, loss_box_reg = fastrcnn_loss(
+
                 class_logits, box_regression, labels, regression_targets)
             losses = {
                 "loss_classifier": loss_classifier,

@@ -42,6 +42,7 @@ class FasterRCNNBase(nn.Module):
 
         return detections
 
+    # images 图片 targets标注信息
     def forward(self, images, targets=None):
         # type: (List[Tensor], Optional[List[Dict[str, Tensor]]]) -> Tuple[Dict[str, Tensor], List[Dict[str, Tensor]]]
         """
@@ -249,15 +250,15 @@ class FasterRCNN(FasterRCNNBase):
                  min_size=800, max_size=1333,      # 预处理resize时限制的最小尺寸与最大尺寸
                  image_mean=None, image_std=None,  # 预处理normalize时使用的均值和方差
                  # RPN parameters
-                 rpn_anchor_generator=None, rpn_head=None,
+                 rpn_anchor_generator=None, rpn_head=None, # 生成anchor的生成器，rpn-head
                  rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,    # rpn中在nms处理前保留的proposal数(根据score)
                  rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=1000,  # rpn中在nms处理后保留的proposal数
-                 rpn_nms_thresh=0.5,  # rpn中进行nms处理时使用的iou阈值 小目标检测可以适当调低阈值，这里将0.7改为0.5
+                 rpn_nms_thresh=0.7,  # rpn中进行nms处理时使用的iou阈值 小目标检测可以适当调低阈值，这里将0.7改为0.5
 
                  rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,  # rpn计算损失时，采集正负样本设置的阈值
                  rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,  # rpn计算损失时采样的样本数，以及正样本占总样本的比例
                  rpn_score_thresh=0.0,
-                 # Box parameters
+                 # Box parameters  roipooling层可以换成roialign层*****后续可以进行修改
                  box_roi_pool=None, box_head=None, box_predictor=None,
                  # 移除低目标概率      fast rcnn中进行nms处理的阈值   对预测结果根据score排序取前100个目标
                  box_score_thresh=0.05, box_nms_thresh=0.5, box_detections_per_img=100,
@@ -287,6 +288,7 @@ class FasterRCNN(FasterRCNNBase):
         out_channels = backbone.out_channels
 
         # 若anchor生成器为空，则自动生成针对resnet50_fpn的anchor生成器
+        # anchor size：
         if rpn_anchor_generator is None:
             anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
             aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
@@ -319,6 +321,7 @@ class FasterRCNN(FasterRCNNBase):
                 featmap_names=['0', '1', '2', '3'],  # 在哪些特征层进行roi pooling
                 output_size=[7, 7],
                 sampling_ratio=2)
+
 
         # fast RCNN中roi pooling后的展平处理两个全连接层部分
         if box_head is None:
