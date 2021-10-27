@@ -253,7 +253,7 @@ class FasterRCNN(FasterRCNNBase):
                  rpn_anchor_generator=None, rpn_head=None, # 生成anchor的生成器，rpn-head
                  rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,    # rpn中在nms处理前保留的proposal数(根据score)
                  rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=1000,  # rpn中在nms处理后保留的proposal数
-                 rpn_nms_thresh=0.7,  # rpn中进行nms处理时使用的iou阈值 小目标检测可以适当调低阈值，这里将0.7改为0.5
+                 rpn_nms_thresh=0.7,  # rpn中进行nms处理时使用的阈值
 
                  rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,  # rpn计算损失时，采集正负样本设置的阈值
                  rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,  # rpn计算损失时采样的样本数，以及正样本占总样本的比例

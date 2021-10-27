@@ -9,6 +9,7 @@ import json
 import torch
 from tqdm import tqdm
 import numpy as np
+import datetime
 
 import transforms
 from network_files import FasterRCNN
@@ -38,7 +39,8 @@ def summarize(self, catId=None):
             # dimension of precision: [TxRxKxAxM] 如何增加k的长度[10,101,24,4,3]-->[10,101,38,4,3]
             s = self.eval['precision']
             # print(s.shape)
-            s.resize((10,101,38,4,3),refcheck=False)
+            # s.resize((10,101,38,4,3),refcheck=False)
+            s.resize((10, 101, 25, 4, 3), refcheck=False)
             # print(s.shape)
             # IoU
             if iouThr is not None:
@@ -54,7 +56,8 @@ def summarize(self, catId=None):
             # dimension of recall: [TxKxAxM] 如何增加k的长度[10,24,4,3]-->[10,38,4,3]
             s = self.eval['recall']
             # print(s.shape)
-            s.resize((10, 38, 4, 3), refcheck=False)
+            # s.resize((10, 38, 4, 3), refcheck=False)
+            s.resize((10, 25, 4, 3), refcheck=False)
             # print(s.shape)
             if iouThr is not None:
                 t = np.where(iouThr == p.iouThrs)[0]
@@ -197,8 +200,9 @@ def main(parser_data):
 
 
     # 将验证结果保存至txt文件中
-    with open("record_mAP.txt", "w") as f:
-        record_lines = ["COCO results:",
+    record_file = "./results/record_mAP{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    with open(record_file, "w") as f:
+        record_lines = ["results:",
                         print_coco,
                         "",
                         "mAP(IoU=0.5) for each category:",
@@ -216,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', default='cuda', help='device')
 
     # 检测目标类别数 检测目标类别数(不包含背景) 24类害虫，但index到了37
-    parser.add_argument('--num-classes', type=int, default='37', help='number of classes')
+    parser.add_argument('--num-classes', type=int, default='24', help='number of classes')
 
     # 数据集的根目录(VOCdevkit)
     parser.add_argument('--data-path', default='./', help='dataset root')

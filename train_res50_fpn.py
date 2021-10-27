@@ -41,7 +41,7 @@ def main(parser_data):
     print("Using {} device training.".format(device.type))
 
     # 用来保存coco_info的文件
-    results_file = "results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    results_file = "./results/results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     data_transform = {
         "train": transforms.Compose([transforms.ToTensor(),  # 将image转换为tensor
@@ -106,10 +106,14 @@ def main(parser_data):
 
     # define optimizer
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr=0.005,
-                                momentum=0.9, weight_decay=0.0005)
+    # optimizer = torch.optim.SGD(params, lr=0.005,
+    #                             momentum=0.9, weight_decay=0.0005)
+    optimizer = torch.optim.SGD(params, lr=0.01,
+                                momentum=0.9, weight_decay=0.0001)
 
     # learning rate scheduler
+    # 等间隔调整学习率，调整倍数为 gamma 倍即为lr*gamma，调整间隔为 step_size。间隔单位是step。
+    # 需要注意的是， step 通常是指 epoch，不要弄成 iteration 了。
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=3,
                                                    gamma=0.33)
@@ -126,6 +130,7 @@ def main(parser_data):
     train_loss = []
     learning_rate = []
     val_map = []
+    # val_mar = []
 
     for epoch in range(parser_data.start_epoch, parser_data.epochs):
         # train for one epoch, printing every 10 iterations
@@ -149,6 +154,7 @@ def main(parser_data):
             f.write(txt + "\n")
 
         val_map.append(coco_info[1])  # pascal mAP
+        # val_mar.append(coco_info[8])  # AR
 
         # save weights
         save_files = {
@@ -168,6 +174,11 @@ def main(parser_data):
         from plot_curve import plot_map
         plot_map(val_map)
 
+    # # plot PR curve
+    # if len(val_mar) != 0 and len(val_map) != 0:
+    #     from plot_curve import plot_PR
+    #     plot_PR(val_mar, val_map)
+
 
 if __name__ == "__main__":
     import argparse
@@ -180,7 +191,7 @@ if __name__ == "__main__":
     # 训练数据集的根目录(VOCdevkit)
     parser.add_argument('--data-path', default='./', help='dataset')
     # 检测目标类别数(不包含背景) 24类害虫，但index到了37
-    parser.add_argument('--num-classes', default=37, type=int, help='num_classes')
+    parser.add_argument('--num-classes', default=24, type=int, help='num_classes')
     # 文件保存地址
     parser.add_argument('--output-dir', default='./save_weights', help='path where to save')
     # 若需要接着上次训练，则指定上次训练保存权重文件地址
@@ -188,7 +199,7 @@ if __name__ == "__main__":
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     # 训练的总epoch数
-    parser.add_argument('--epochs', default=15, type=int, metavar='N',
+    parser.add_argument('--epochs', default=20, type=int, metavar='N',
                         help='number of total epochs to run')
     # 训练的batch size
     parser.add_argument('--batch_size', default=8, type=int, metavar='N',

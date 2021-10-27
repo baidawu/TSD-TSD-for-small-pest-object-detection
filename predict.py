@@ -49,7 +49,7 @@ def main():
     print("using {} device.".format(device))
 
     # create model
-    model = create_model(num_classes=38) # 24类+背景
+    model = create_model(num_classes=25) # 24类+背景
 
     # load train weights
     train_weights = "./save_weights/resNetFpn-model-14.pth"
@@ -75,7 +75,7 @@ def main():
     # category_index = {k: v for k, v in class_dict.items()}
 
     # load image
-    original_img = Image.open("./test.jpg")
+    original_img = Image.open("./results/test.jpg")
 
     # from pil image to tensor, do not normalize image
     data_transform = transforms.Compose([transforms.ToTensor()])
@@ -112,7 +112,7 @@ def main():
         plt.imshow(original_img)
         plt.show()
         # 保存预测的图片结果
-        original_img.save("test_result.jpg")
+        original_img.save("./results/test_result.jpg")
 
 
 if __name__ == '__main__':

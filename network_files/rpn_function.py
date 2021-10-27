@@ -524,6 +524,7 @@ class RegionProposalNetwork(torch.nn.Module):
             boxes, scores, lvl = boxes[keep], scores[keep], lvl[keep]
 
             # non-maximum suppression, independently done per level
+            # 前处理：采用nms
             keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
 
             # keep only topk scoring predictions

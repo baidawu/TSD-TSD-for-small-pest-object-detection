@@ -31,6 +31,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch,
 
         # 混合精度训练上下文管理器，如果在CPU环境中不起任何作用
         with torch.cuda.amp.autocast(enabled=enable_amp):
+
             loss_dict = model(images, targets)
 
             losses = sum(loss for loss in loss_dict.values())

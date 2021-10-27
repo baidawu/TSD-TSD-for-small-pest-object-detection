@@ -39,9 +39,16 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     # 将CE损失改为focal loss损失
     # print(class_logits.shape)
     N, num_classes = class_logits.shape
-    fl = FocalLoss(class_num=num_classes,gamma=2,alpha=0.25)
+    fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.25)
+    # fl = FocalLoss(class_num=num_classes,gramma=0,alpha=0.75)
+    # fl = FocalLoss(class_num=num_classes, gramma=0.1, alpha=0.75)
+    # fl = FocalLoss(class_num=num_classes, gramma=0.2, alpha=0.75)
+    # fl = FocalLoss(class_num=num_classes, gramma=0.5, alpha=0.5)
+    # fl = FocalLoss(class_num=num_classes, gramma=1, alpha=0.25)
+    # fl = FocalLoss(class_num=num_classes, gramma=2, alpha=0.25)
+    # fl = FocalLoss(class_num=num_classes, gramma=5, alpha=0.25)
     # print(class_logits.dim(),labels.dim())
-    classification_loss = fl(class_logits,labels)
+    classification_loss = fl(class_logits, labels)
 
 
 
@@ -349,7 +356,9 @@ class RoIHeads(torch.nn.Module):
 
             # non-maximun suppression, independently done per class
             # 执行nms处理，执行后的结果会按照scores从大到小进行排序返回
+            # 后处理：采用soft-nms
             keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+            # keep = box_ops.batched_nms_post(boxes, scores, labels, self.nms_thresh)
 
             # keep only topk scoring predictions
             # 获取scores排在前topk个预测目标
