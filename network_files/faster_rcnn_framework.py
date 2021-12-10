@@ -1,15 +1,23 @@
+import copy
 import warnings
 from collections import OrderedDict
 from typing import Tuple, List, Dict, Optional, Union
-
+import torchvision.transforms as transforms
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 from torchvision.ops import MultiScaleRoIAlign
+import draw_box_utils
 
 from .roi_head import RoIHeads
 from .transform import GeneralizedRCNNTransform
 from .rpn_function import AnchorsGenerator, RPNHead, RegionProposalNetwork
+from PIL import Image
+import matplotlib.pyplot as plt
+import collections
+import PIL.ImageDraw as ImageDraw
+import PIL.ImageFont as ImageFont
+import numpy as np
 
 
 class FasterRCNNBase(nn.Module):
@@ -80,23 +88,71 @@ class FasterRCNNBase(nn.Module):
             original_image_sizes.append((val[0], val[1]))
         # original_image_sizes = [img.shape[-2:] for img in images]
 
+        # loader = transforms.Compose([transforms.ToTensor()])
+        # unloader = transforms.ToPILImage()
+
+        # original_image = copy.deepcopy(images)
+        # print("original image shape:{}".format(original_image.shape))
         images, targets = self.transform(images, targets)  # 对图像进行预处理
 
         # print(images.tensors.shape)
         features = self.backbone(images.tensors)  # 将图像输入backbone得到特征图
+
         if isinstance(features, torch.Tensor):  # 若只在一层特征层上预测，将feature放入有序字典中，并编号为‘0’
             features = OrderedDict([('0', features)])  # 若在多层特征层上预测，传入的就是一个有序字典
+
+        # for k, v in features.items():
+        #     # print(k, v)
+        #     print(k, v.shape)
+        #     fig = plt.figure()
+        #     ax = plt.subplot()
+        #     ax.set_title('feature {}'.format(k))
+        #     plt.imshow(v.data.cpu().numpy()[0, 255, :, :], cmap='jet')
+        #     plt.show()  # 图像每次都不一样，是因为模型每次都需要前向传播一次，不是加载
+        #     fig.savefig("./results/feature maps_{}.png".format(k))
 
         # 将特征层以及标注target信息传入rpn中
         # proposals: List[Tensor], Tensor_shape: [num_proposals, 4],
         # 每个proposals是绝对坐标，且为(x1, y1, x2, y2)格式
+
         proposals, proposal_losses = self.rpn(images, features, targets)
+
+        # if len(proposals[0]) > 0:
+        #     for img in original_image:
+        #         image = img.cpu().clone()
+        #         image = image.squeeze(0)
+        #         image = unloader(image)
+        #         # image.save("./results/rpn-image.jpg")
+        #         draw_box_utils.draw_rpn_box(image, proposals[0])
+        #         plt.imshow(image)
+        #         plt.show()
+        #         image.save("./results/rpn_images.jpg")
+
+        # draw_box_utils.draw_rpn_box(images, proposals)
+
+        # print("proposals:{}".format(proposals))
 
         # 将rpn生成的数据以及标注target信息传入fast rcnn后半部分
         detections, detector_losses = self.roi_heads(features, proposals, images.image_sizes, targets)
+        # print("detections:{}".format(detections))
 
         # 对网络的预测结果进行后处理（主要将bboxes还原到原图像尺度上）
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
+        # print("detections:{}".format(detections))
+
+        # predict_boxes = detections[0]["boxes"].to("cpu").numpy()
+        # predict_classes = detections[0]["labels"].to("cpu").numpy()
+        # predict_scores = detections[0]["scores"].to("cpu").numpy()
+        # for img in original_image:
+        #     image = img.cpu().clone()
+        #     image = image.squeeze(0)
+        #     image = unloader(image)
+        #     # draw_box_utils.draw_roi_box(image, predict_boxes, predict_classes, predict_scores)
+        #     draw_box_utils.draw_rpn_box(image, predict_boxes)
+        #     plt.imshow(image)
+        #     plt.show()
+        #     image.save("./results/roi-images.jpg")
+
 
         losses = {}
         losses.update(detector_losses)
@@ -106,6 +162,7 @@ class FasterRCNNBase(nn.Module):
             if not self._has_warned:
                 warnings.warn("RCNN always returns a (Losses, Detections) tuple in scripting")
                 self._has_warned = True
+
             return losses, detections
         else:
             return self.eager_outputs(losses, detections)
@@ -153,6 +210,7 @@ class FastRCNNPredictor(nn.Module):
     def __init__(self, in_channels, num_classes):
         super(FastRCNNPredictor, self).__init__()
         self.cls_score = nn.Linear(in_channels, num_classes)
+
         self.bbox_pred = nn.Linear(in_channels, num_classes * 4)
 
     def forward(self, x):
@@ -251,8 +309,10 @@ class FasterRCNN(FasterRCNNBase):
                  image_mean=None, image_std=None,  # 预处理normalize时使用的均值和方差
                  # RPN parameters
                  rpn_anchor_generator=None, rpn_head=None, # 生成anchor的生成器，rpn-head
-                 rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,    # rpn中在nms处理前保留的proposal数(根据score)
-                 rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=1000,  # rpn中在nms处理后保留的proposal数
+                 # rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,    # rpn中在nms处理前保留的proposal数(根据score)
+                 # rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=1000,  # rpn中在nms处理后保留的proposal数
+                 rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=1000,  # rpn中在nms处理前保留的proposal数(根据score)
+                 rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=300,  # rpn中在nms处理后保留的proposal数
                  rpn_nms_thresh=0.7,  # rpn中进行nms处理时使用的阈值
 
                  rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,  # rpn计算损失时，采集正负样本设置的阈值
@@ -290,7 +350,9 @@ class FasterRCNN(FasterRCNNBase):
         # 若anchor生成器为空，则自动生成针对resnet50_fpn的anchor生成器
         # anchor size：
         if rpn_anchor_generator is None:
-            anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+            # anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+            # aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
+            anchor_sizes = ((16,), (32,), (64,), (128,), (256,))
             aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
             rpn_anchor_generator = AnchorsGenerator(
                 anchor_sizes, aspect_ratios
@@ -337,6 +399,7 @@ class FasterRCNN(FasterRCNNBase):
             representation_size = 1024
             box_predictor = FastRCNNPredictor(
                 representation_size,
+
                 num_classes)
 
         # 将roi pooling, box_head以及box_predictor结合在一起

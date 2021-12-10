@@ -17,7 +17,7 @@ def create_model(num_classes):
     # 如果GPU显存很大可以设置比较大的batch_size就可以将norm_layer设置为普通的BatchNorm2d
     # trainable_layers包括['layer4', 'layer3', 'layer2', 'layer1', 'conv1']， 5代表全部训练
     backbone = resnet50_fpn_backbone(norm_layer=torch.nn.BatchNorm2d,
-                                     trainable_layers=3) # backbone网络
+                                     trainable_layers=3)  # backbone网络
     # 训练自己数据集时不要修改这里的91，修改的是传入的num_classes参数
     model = FasterRCNN(backbone=backbone, num_classes=91)
     # 载入预训练模型权重
@@ -129,28 +129,53 @@ def main(parser_data):
 
     train_loss = []
     learning_rate = []
+    cls_losses = []
+    box_reg_losses = []
+    objectness_losses = []
+    rpn_box_reg_losses = []
     val_map = []
     # val_mar = []
+    loss_txt = "./results/loss{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    with open(loss_txt, "a") as f:
+        # 写入的数据包括coco指标还有loss和learning rate
+        print_format = "loss  cls_loss  box_reg_loss  objectness_loss  rpn_box_reg_loss"
+        f.write(print_format + '\n')
 
+    exp_txt = "./experiment/experiments{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     for epoch in range(parser_data.start_epoch, parser_data.epochs):
         # train for one epoch, printing every 10 iterations
-        mean_loss, lr = utils.train_one_epoch(model, optimizer, train_data_loader,
-                                              device=device, epoch=epoch,
-                                              print_freq=50, warmup=True)
+        mean_loss, cls_loss, box_reg_loss, objectness_loss, rpn_box_reg_loss, lr = utils.train_one_epoch(
+                                                model, optimizer, train_data_loader, exp_txt,
+                                                device=device, epoch=epoch,
+                                                print_freq=50, warmup=True)
         train_loss.append(mean_loss.item())
+
+        cls_losses.append(cls_loss.item())
+        box_reg_losses.append(box_reg_loss.item())
+        objectness_losses.append(objectness_loss.item())
+        rpn_box_reg_losses.append(rpn_box_reg_loss.item())
+
         learning_rate.append(lr)
 
         # update the learning rate
         lr_scheduler.step()
 
         # evaluate on the test dataset
-        coco_info = utils.evaluate(model, val_data_set_loader, device=device)
+        coco_info = utils.evaluate(model, val_data_set_loader, exp_txt, device=device)
 
         # write into txt
         with open(results_file, "a") as f:
             # 写入的数据包括coco指标还有loss和learning rate
             result_info = [str(round(i, 4)) for i in coco_info + [mean_loss.item()]] + [str(round(lr, 6))]
             txt = "epoch:{} {}".format(epoch, '  '.join(result_info))
+            f.write(txt + "\n")
+
+        with open(loss_txt, "a") as f:
+            # 写入的数据包括coco指标还有loss和learning rate
+            print_format = "{} {} {} {} {}"
+            txt = print_format.format(mean_loss.item(),
+                                      cls_loss.item(), box_reg_loss.item(),
+                                      objectness_loss.item(), rpn_box_reg_loss.item())
             f.write(txt + "\n")
 
         val_map.append(coco_info[1])  # pascal mAP
@@ -174,10 +199,9 @@ def main(parser_data):
         from plot_curve import plot_map
         plot_map(val_map)
 
-    # # plot PR curve
-    # if len(val_mar) != 0 and len(val_map) != 0:
-    #     from plot_curve import plot_PR
-    #     plot_PR(val_mar, val_map)
+    if len(train_loss) != 0 and len(cls_losses) != 0 and len(box_reg_losses) != 0 and len(objectness_losses) != 0 and len(rpn_box_reg_losses) != 0:
+        from plot_curve import plot_loss
+        plot_loss(train_loss, cls_losses, box_reg_losses, objectness_losses, rpn_box_reg_losses)
 
 
 if __name__ == "__main__":
@@ -199,7 +223,7 @@ if __name__ == "__main__":
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     # 训练的总epoch数
-    parser.add_argument('--epochs', default=20, type=int, metavar='N',
+    parser.add_argument('--epochs', default=21, type=int, metavar='N',
                         help='number of total epochs to run')
     # 训练的batch size
     parser.add_argument('--batch_size', default=8, type=int, metavar='N',

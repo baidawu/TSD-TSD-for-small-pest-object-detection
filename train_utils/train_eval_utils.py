@@ -1,15 +1,16 @@
 import math
 import sys
 import time
+from visualdl import LogWriter
 
 import torch
 
 from .coco_utils import get_coco_api_from_dataset
 from .coco_eval import CocoEvaluator
 import train_utils.distributed_utils as utils
+log_writer = LogWriter(logdir='./log')
 
-
-def train_one_epoch(model, optimizer, data_loader, device, epoch,
+def train_one_epoch(model, optimizer, data_loader, exp_txt, device, epoch,
                     print_freq=50, warmup=False):
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -24,8 +25,13 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch,
         lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
 
     mloss = torch.zeros(1).to(device)  # mean losses
+    cls_loss = torch.zeros(1).to(device)
+    box_reg_loss = torch.zeros(1).to(device)
+    objectness_loss = torch.zeros(1).to(device)
+    rpn_box_reg_loss = torch.zeros(1).to(device)
+
     enable_amp = True if "cuda" in device.type else False
-    for i, [images, targets] in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    for i, [images, targets] in enumerate(metric_logger.log_every(data_loader, print_freq, exp_txt, header)):
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -33,20 +39,33 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch,
         with torch.cuda.amp.autocast(enabled=enable_amp):
 
             loss_dict = model(images, targets)
-
             losses = sum(loss for loss in loss_dict.values())
 
             # reduce losses over all GPUs for logging purpose
             loss_dict_reduced = utils.reduce_dict(loss_dict)
+
             losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+            cls_reduced = loss_dict_reduced['loss_classifier'].item()
+            box_reg_reduced = loss_dict_reduced['loss_box_reg'].item()
+            objectness_reduced = loss_dict_reduced['loss_objectness'].item()
+            rpn_box_reg_reduced = loss_dict_reduced['loss_rpn_box_reg'].item()
 
             loss_value = losses_reduced.item()
+            # print(loss_value)
             # 记录训练损失
             mloss = (mloss * i + loss_value) / (i + 1)  # update mean losses
+            cls_loss = (cls_loss * i + cls_reduced) / (i + 1)
+            box_reg_loss = (box_reg_loss * i + box_reg_reduced) / (i + 1)
+            objectness_loss = (objectness_loss * i + objectness_reduced) / (i + 1)
+            rpn_box_reg_loss = (rpn_box_reg_loss * i + rpn_box_reg_reduced) / (i + 1)
 
             if not math.isfinite(loss_value):  # 当计算的损失为无穷大时停止训练
                 print("Loss is {}, stopping training".format(loss_value))
                 print(loss_dict_reduced)
+                with open(exp_txt, "a") as f:
+                    # 写入的数据包括coco指标还有loss和learning rate
+                    txt = "Loss is {}, stopping training\n{}".format(loss_value, loss_dict_reduced)
+                    f.write(txt + "\n")
                 sys.exit(1)
 
         optimizer.zero_grad()
@@ -60,11 +79,11 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch,
         now_lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(lr=now_lr)
 
-    return mloss, now_lr
+    return mloss, cls_loss, box_reg_loss, objectness_loss, rpn_box_reg_loss, now_lr
 
 
 @torch.no_grad()
-def evaluate(model, data_loader, device):
+def evaluate(model, data_loader, exp_txt, device):
 
     cpu_device = torch.device("cpu")
     model.eval()
@@ -75,7 +94,7 @@ def evaluate(model, data_loader, device):
     iou_types = _get_iou_types(model)
     coco_evaluator = CocoEvaluator(coco, iou_types)
 
-    for image, targets in metric_logger.log_every(data_loader, 100, header):
+    for image, targets in metric_logger.log_every(data_loader, 100, exp_txt=exp_txt, header=header):
         image = list(img.to(device) for img in image)
 
         # 当使用CPU时，跳过GPU相关指令
@@ -98,6 +117,11 @@ def evaluate(model, data_loader, device):
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
+    with open(exp_txt, "a") as f:
+        # 写入的数据包括coco指标还有loss和learning rate
+        txt = "Averaged stats:{}".format(metric_logger)
+        f.write(txt + "\n")
+
     coco_evaluator.synchronize_between_processes()
 
     # accumulate predictions from all images

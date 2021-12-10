@@ -5,6 +5,7 @@ from torch import nn, Tensor
 from torch.nn import functional as F
 import torchvision
 
+import loss
 from . import det_utils
 from . import boxes as box_ops
 from .image_list import ImageList
@@ -354,8 +355,8 @@ class RegionProposalNetwork(torch.nn.Module):
 
         # use during training
         # 计算anchors与真实bbox的iou
-        self.box_similarity = box_ops.box_iou
-
+        # self.box_similarity = box_ops.box_iou
+        self.box_similarity = box_ops.box_iou_post
         self.proposal_matcher = det_utils.Matcher(
             fg_iou_thresh,  # 当iou大于fg_iou_thresh(0.7)时视为正样本
             bg_iou_thresh,  # 当iou小于bg_iou_thresh(0.3)时视为负样本
@@ -408,8 +409,10 @@ class RegionProposalNetwork(torch.nn.Module):
                 # 计算anchors与真实bbox的iou信息
                 # set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
                 match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image)
+                # match_quality_matrix = box_ops.box_iou_post(gt_boxes, anchors_per_image)
                 # 计算每个anchors与gt匹配iou最大的索引（如果iou<0.3索引置为-1，0.3<iou<0.7索引为-2）
                 matched_idxs = self.proposal_matcher(match_quality_matrix)
+
                 # get the targets corresponding GT for each proposal
                 # NB: need to clamp the indices because we can have a single
                 # GT in the image, and matched_idxs can be -2, which goes
@@ -576,6 +579,12 @@ class RegionProposalNetwork(torch.nn.Module):
         objectness_loss = F.binary_cross_entropy_with_logits(
             objectness[sampled_inds], labels[sampled_inds]
         )
+        # print(objectness[sampled_inds], labels[sampled_inds])
+        # center_loss = loss.CenterLoss(num_classes=2)
+        # objectness_center_loss = center_loss(objectness[sampled_inds], labels[sampled_inds])
+        #
+        # objectness_loss = objectness_loss + 0.1 * objectness_center_loss
+
 
         return objectness_loss, box_loss
 

@@ -1,10 +1,15 @@
 import torch
 import time
 import numpy as np
+import copy
+import random
+
+import numpy as np
 
 
 
-def soft_nms_pytorch(dets, box_scores, iou_thresh, sigma=0.5, thresh=0.001, cuda=0):
+
+def soft_nms_pytorch(dets, box_scores, iou_thresh, sigma=0.5, thresh=0.1, cuda=0):
     """
     Build a pytorch implement of Soft NMS algorithm.
     # Augments
@@ -30,7 +35,11 @@ def soft_nms_pytorch(dets, box_scores, iou_thresh, sigma=0.5, thresh=0.001, cuda
     x1 = dets[:, 1]
     y2 = dets[:, 2]
     x2 = dets[:, 3]
-    scores = box_scores
+    # scores = box_scores
+    # 原boxscores值不发生改变
+    scores = copy.deepcopy(box_scores)
+
+
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
 
     for i in range(N):
@@ -70,12 +79,25 @@ def soft_nms_pytorch(dets, box_scores, iou_thresh, sigma=0.5, thresh=0.001, cuda
 
         inter = (w * h).clone().detach().cuda() if cuda else (w * h).clone().detach()
         ovr = torch.div(inter, (areas[i] + areas[pos:] - inter))
-        ids_over = (ovr < iou_thresh).float()
-        ovr = ovr * ids_over
 
-        # Gaussian decay
-        weight = torch.exp(-(ovr * ovr) / sigma)
+        # # traditional nms
+        # weight = torch.ones(ovr.shape).cuda()
+        # weight[ovr > iou_thresh] = 0
+
+        # linear decay
+        alpha = random.random()
+        # alpha = random.randint(1, 2)
+        weight = torch.ones(ovr.shape).cuda()
+        weight[ovr > iou_thresh] = weight[ovr > iou_thresh] - ovr[ovr > iou_thresh] * alpha
+        # weight[ovr > iou_thresh] = weight[ovr > iou_thresh] - ovr[ovr > iou_thresh]
+
+        # # Gaussian decay
+        # ids_over = (ovr > iou_thresh).float()
+        # ovr = ovr * ids_over
+        # weight = torch.exp(-(ovr * ovr) / sigma)
+
         scores[pos:] = weight * scores[pos:]
+
 
     # select the boxes and keep the corresponding indexes
     # keep = dets[:, 4][scores > thresh].int()

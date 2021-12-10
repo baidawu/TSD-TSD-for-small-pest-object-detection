@@ -226,7 +226,7 @@ if __name__ == "__main__":
     parser.add_argument('--data-path', default='./', help='dataset root')
 
     # 训练好的权重文件
-    parser.add_argument('--weights', default='./save_weights/resNetFpn-model-14.pth', type=str, help='training weights')
+    parser.add_argument('--weights', default='./save_weights/resNetFpn-model-20.pth', type=str, help='training weights')
 
     # batch size
     parser.add_argument('--batch_size', default=1, type=int, metavar='N',

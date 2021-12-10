@@ -138,19 +138,19 @@ def main():
                     break  # 网络输出概率已经排序过，当遇到一个不满足后面的肯定不满足
 
 
-            # print(img_path,predict_boxes,predict_classes,predict_scores)
-            #
-            # draw_box(original_img,
-            #          predict_boxes,
-            #          predict_classes,
-            #          predict_scores,
-            #          category_index,
-            #          thresh=0.5,
-            #          line_thickness=3)
-            # plt.imshow(original_img)
-            # plt.show()
-            # # 保存预测的图片结果
-            # original_img.save("test_result.jpg")
+            print(img_path,predict_boxes,predict_classes,predict_scores)
+
+            draw_box(original_img,
+                     predict_boxes,
+                     predict_classes,
+                     predict_scores,
+                     category_index,
+                     thresh=0.5,
+                     line_thickness=3)
+            plt.imshow(original_img)
+            plt.show()
+            # 保存预测的图片结果
+            original_img.save("test_result.jpg")
 
 
 

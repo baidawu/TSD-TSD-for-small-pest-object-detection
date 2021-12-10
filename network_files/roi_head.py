@@ -4,6 +4,11 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 from loss import FocalLoss
+import soft_nms
+import GIoU_loss
+import math
+import sys
+import rep_loss
 
 from . import det_utils
 from . import boxes as box_ops
@@ -17,7 +22,7 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     Computes the loss for Faster R-CNN.
 
     Arguments:
-        class_logits : 预测类别概率信息，shape=[num_anchors, num_classes]
+        class_logits : 预测类别概率信息，shape=[num_anchors, num_classes] scores
         box_regression : 预测边目标界框回归信息
         labels : 真实类别信息
         regression_targets : 真实目标边界框信息
@@ -40,19 +45,20 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     # print(class_logits.shape)
     N, num_classes = class_logits.shape
     fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.25)
-    # fl = FocalLoss(class_num=num_classes,gramma=0,alpha=0.75)
-    # fl = FocalLoss(class_num=num_classes, gramma=0.1, alpha=0.75)
-    # fl = FocalLoss(class_num=num_classes, gramma=0.2, alpha=0.75)
-    # fl = FocalLoss(class_num=num_classes, gramma=0.5, alpha=0.5)
-    # fl = FocalLoss(class_num=num_classes, gramma=1, alpha=0.25)
-    # fl = FocalLoss(class_num=num_classes, gramma=2, alpha=0.25)
-    # fl = FocalLoss(class_num=num_classes, gramma=5, alpha=0.25)
+    # fl = FocalLoss(class_num=num_classes, gamma=3, alpha=0.25)
+    # fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.25, use_alpha=True)
+    # fl = FocalLoss(class_num=num_classes, alpha=0.75,  gamma=0.1, use_alpha=True)  # loss is nan
+    # fl = FocalLoss(class_num=num_classes, alpha=0.75, gamma=0.2, use_alpha=True)  # loss is nan
+    # fl = FocalLoss(class_num=num_classes, alpha=0.5, gamma=0.5, use_alpha=True)  # loss is nan
+    # fl = FocalLoss(class_num=num_classes, alpha=0.25, gamma=1, use_alpha=True)
+    # fl = FocalLoss(class_num=num_classes, alpha=0.25, gamma=3, use_alpha=True)2
+    # fl = FocalLoss(class_num=num_classes, alpha=0.25, gamma=5, use_alpha=True)
     # print(class_logits.dim(),labels.dim())
     classification_loss = fl(class_logits, labels)
 
 
 
-    # get indices that correspond to the regression targets for
+    # get indices that correspond to the regression targets for+
     # the corresponding ground truth labels, to be used with
     # advanced indexing
     # 返回标签类别大于0的索引
@@ -67,14 +73,74 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     N, num_classes = class_logits.shape
     box_regression = box_regression.reshape(N, -1, 4)
 
+
     # 计算边界框损失信息
-    box_loss = det_utils.smooth_l1_loss(
+    # box_loss = det_utils.smooth_l1_loss(
+    #     # 获取指定索引proposal的指定类别box信息
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
+    #     regression_targets[sampled_pos_inds_subset],  # target
+    #     beta=1 / 9,
+    #     size_average=False,
+    # ) / labels.numel()
+
+    loss_attr = det_utils.smooth_l1_loss(
         # 获取指定索引proposal的指定类别box信息
-        box_regression[sampled_pos_inds_subset, labels_pos],
-        regression_targets[sampled_pos_inds_subset],
+        box_regression[sampled_pos_inds_subset, labels_pos],  # input
+        regression_targets[sampled_pos_inds_subset],  # target
         beta=1 / 9,
         size_average=False,
     ) / labels.numel()
+    # box_loss = loss_attr
+
+    # loss_rep_gt = rep_loss.rep_gt_loss(
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
+    #     regression_targets[sampled_pos_inds_subset],  # target
+    #     beta=1,
+    #     size_average=False,
+    # ) / labels.numel()
+    # #
+    # box_loss = loss_attr + 0.1 * loss_rep_gt
+
+    loss_rep_gt = rep_loss.smooth_rep_loss(
+        box_regression[sampled_pos_inds_subset, labels_pos],  # input
+        regression_targets[sampled_pos_inds_subset],  # target
+        beta=1 / 9,
+        size_average=False,
+    ) / labels.numel()
+
+    box_loss = loss_attr - 0.1 * loss_rep_gt
+
+    loss_rep_box = rep_loss.smooth_rep_box_loss(
+        box_regression[sampled_pos_inds_subset, labels_pos],  # input
+        labels[sampled_pos_inds_subset]
+    )
+
+    # if not math.isfinite(loss_rep_box):  # 当计算的损失为无穷大时停止训练
+    #     print("rep_box_loss is nan, stop training!")
+    #     print("box_regression:{}".format(box_regression))
+    #     print("sampled_pos_inds_subset:{}\nlabels_pos:{}".format(sampled_pos_inds_subset, labels_pos))
+    #     print("boxes:{}\nlabel:{}".format(box_regression[sampled_pos_inds_subset, labels_pos], labels[sampled_pos_inds_subset]))
+    #     print("loss_attr:{} loss_rep_gt:{} loss_rep_box:{}".format(loss_attr, loss_rep_gt, loss_rep_box))
+    #     sys.exit(1)
+
+    # box_loss = loss_attr - 0.1 * loss_rep_gt + 0.1 * loss_rep_box
+
+    # print("{}++++{}-----{}++++{}".format(box_loss, loss_attr, loss_rep_gt, loss_rep_box))
+
+    # GIOU LOSS
+    # box_loss = GIoU_loss.Giou_loss(
+    #     # 获取指定索引proposal的指定类别box信息
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # predict
+    #     regression_targets[sampled_pos_inds_subset],  # ground truth
+    #     beta=1 / 9,
+    #     reduction='sum',
+    # ) / labels.numel()
+
+    # box_loss = GIoU_loss.compute_giou(
+    #     # 获取指定索引proposal的指定类别box信息
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # predict
+    #     regression_targets[sampled_pos_inds_subset],  # ground truth
+    # ) / labels.numel()
 
     return classification_loss, box_loss
 
@@ -89,7 +155,7 @@ class RoIHeads(torch.nn.Module):
     def __init__(self,
                  box_roi_pool,   # Multi-scale RoIAlign pooling
                  box_head,       # TwoMLPHead
-                 box_predictor,  # FastRCNNPredictor
+                 box_predictor,  # FastRCNNPredictor scores = self.cls_score(x)  bbox_deltas = self.bbox_pred(x) return scores, bbox_deltas
                  # Faster R-CNN training
                  fg_iou_thresh, bg_iou_thresh,  # default: 0.5, 0.5
                  batch_size_per_image, positive_fraction,  # default: 512, 0.25
@@ -151,6 +217,7 @@ class RoIHeads(torch.nn.Module):
             else:
                 #  set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
                 # 计算proposal与每个gt_box的iou重合度
+                # match_quality_matrix = box_ops.box_iou_post(gt_boxes_in_image, proposals_in_image)
                 match_quality_matrix = box_ops.box_iou(gt_boxes_in_image, proposals_in_image)
 
                 # 计算proposal与每个gt_box匹配的iou最大值，并记录索引，
@@ -358,12 +425,21 @@ class RoIHeads(torch.nn.Module):
             # 执行nms处理，执行后的结果会按照scores从大到小进行排序返回
             # 后处理：采用soft-nms
             keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+
+            # keep = box_ops.nms_post(boxes, scores, self.nms_thresh)
             # keep = box_ops.batched_nms_post(boxes, scores, labels, self.nms_thresh)
+            # box_keep, labels_keep, scores_keep = soft_nms.box_soft_nms(boxes, scores, labels, nms_threshold=self.nms_thresh)
+            # keep = soft_nms.box_soft_nms(boxes, scores, labels, nms_threshold=self.nms_thresh)
 
             # keep only topk scoring predictions
-            # 获取scores排在前topk个预测目标
+            # 获取scores排在前topk个预测目标,
             keep = keep[:self.detection_per_img]
+            # 方法一：scores值在nms中未发生改变
             boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
+            # boxes, scores, labels = box_keep[:self.detection_per_img], scores_keep[:self.detection_per_img], labels_keep[:self.detection_per_img]
+
+            # 方法二：nms之后，scores已经发生变化，已经是按照从大到小的顺序返回
+            # boxes, scores, labels = boxes[keep], scores[:self.detection_per_img], labels[keep]
 
             all_boxes.append(boxes)
             all_scores.append(scores)
@@ -409,15 +485,24 @@ class RoIHeads(torch.nn.Module):
         box_features = self.box_head(box_features)
 
         # 接着分别预测目标类别和边界框回归参数
-        class_logits, box_regression = self.box_predictor(box_features)
+        # boxpredictor() scores = self.cls_score(x)
+        # bbox_deltas = self.bbox_pred(x)
+        # return scores, bbox_deltas
+        class_logits, box_regression = self.box_predictor(box_features)  # class_logits: scores
 
         result = torch.jit.annotate(List[Dict[str, torch.Tensor]], [])
         losses = {}
         if self.training:
             assert labels is not None and regression_targets is not None
-            loss_classifier, loss_box_reg = fastrcnn_loss(
+            loss_classifier, loss_box_reg = fastrcnn_loss(class_logits, box_regression, labels, regression_targets)
+            # if not math.isfinite(loss_box_reg):  # 当计算的损失为无穷大时停止训练
+            #     print("rep_box_loss is nan, stop training!")
+            #     print("box_regression:{}".format(box_regression))
+            #     # print("sampled_pos_inds_subset:{}\nlabels_pos:{}".format(sampled_pos_inds_subset, labels_pos))
+            #     # print("boxes:{}\nlabel:{}".format(box_regression[sampled_pos_inds_subset, labels_pos], labels[sampled_pos_inds_subset]))
+            #     # print("loss_attr:{} loss_rep_gt:{} loss_rep_box:{}".format(loss_attr, loss_rep_gt, loss_rep_box))
+            #     sys.exit(1)
 
-                class_logits, box_regression, labels, regression_targets)
             losses = {
                 "loss_classifier": loss_classifier,
                 "loss_box_reg": loss_box_reg

@@ -176,10 +176,11 @@ class MetricLogger(object):
     def add_meter(self, name, meter):
         self.meters[name] = meter
 
-    def log_every(self, iterable, print_freq, header=None):
+    def log_every(self, iterable, print_freq,  exp_txt, header=None):
         i = 0
         if not header:
             header = ""
+
         start_time = time.time()
         end = time.time()
         iter_time = SmoothedValue(fmt='{avg:.4f}')
@@ -215,12 +216,29 @@ class MetricLogger(object):
                                          time=str(iter_time),
                                          data=str(data_time),
                                          memory=torch.cuda.max_memory_allocated() / MB))
+                    with open(exp_txt, "a") as f:
+                        # 写入的数据包括coco指标还有loss和learning rate
+                        txt = log_msg.format(i, len(iterable),
+                                         eta=eta_string,
+                                         meters=str(self),
+                                         time=str(iter_time),
+                                         data=str(data_time),
+                                         memory=torch.cuda.max_memory_allocated() / MB)
+                        f.write(txt + "\n")
                 else:
                     print(log_msg.format(i, len(iterable),
                                          eta=eta_string,
                                          meters=str(self),
                                          time=str(iter_time),
                                          data=str(data_time)))
+                    with open(exp_txt, "a") as f:
+                        # 写入的数据包括coco指标还有loss和learning rate
+                        txt = log_msg.format(i, len(iterable),
+                                         eta=eta_string,
+                                         meters=str(self),
+                                         time=str(iter_time),
+                                         data=str(data_time))
+                        f.write(txt + "\n")
             i += 1
             end = time.time()
         total_time = time.time() - start_time
@@ -229,6 +247,13 @@ class MetricLogger(object):
                                                          total_time_str,
 
                                                          total_time / len(iterable)))
+        with open(exp_txt, "a") as f:
+            # 写入的数据包括coco指标还有loss和learning rate
+            txt = '{} Total time: {} ({:.4f} s / it)'.format(header,
+                                                         total_time_str,
+
+                                                         total_time / len(iterable))
+            f.write(txt + "\n")
 
 
 def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):

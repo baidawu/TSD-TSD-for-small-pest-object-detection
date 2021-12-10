@@ -1,3 +1,6 @@
+from torch.autograd import Variable
+import torch.nn as nn
+import pickle
 import os
 import time
 import json
@@ -11,6 +14,39 @@ from torchvision import transforms
 from network_files import FasterRCNN, FastRCNNPredictor, AnchorsGenerator
 from backbone import resnet50_fpn_backbone, MobileNetV2
 from draw_box_utils import draw_box
+
+from torchvision import models, transforms
+
+
+import numpy as np
+import scipy.misc
+
+
+# 获取第k层的特征图
+def get_k_layer_feature_map(feature_extractor, k, x):
+    with torch.no_grad():
+        for index, layer in enumerate(feature_extractor):
+            x = layer(x)
+            if k == index:
+                return x
+
+
+#  可视化特征图
+def show_feature_map(feature_map):
+    feature_map = feature_map.squeeze(0)
+    feature_map = feature_map.cpu().numpy()
+    feature_map_num = feature_map.shape[0]
+    row_num = np.ceil(np.sqrt(feature_map_num))
+    plt.figure()
+    for index in range(1, feature_map_num + 1):
+        plt.subplot(row_num, row_num, index)
+        plt.imshow(feature_map[index - 1], cmap='gray')
+        plt.axis('off')
+        scipy.misc.imsave(str(index) + ".png", feature_map[index - 1])
+    plt.show()
+
+
+
 
 
 def create_model(num_classes):
@@ -75,7 +111,7 @@ def main():
     # category_index = {k: v for k, v in class_dict.items()}
 
     # load image
-    original_img = Image.open("./results/test.jpg")
+    original_img = Image.open("./results/test5.jpg")
 
     # from pil image to tensor, do not normalize image
     data_transform = transforms.Compose([transforms.ToTensor()])
@@ -88,7 +124,10 @@ def main():
         # init
         img_height, img_width = img.shape[-2:]
         init_img = torch.zeros((1, 3, img_height, img_width), device=device)
+
         model(init_img)
+        # output = model(img.to(device))
+        # print(output)
 
         t_start = time_synchronized()
         predictions = model(img.to(device))[0]
@@ -102,6 +141,7 @@ def main():
         if len(predict_boxes) == 0:
             print("没有检测到任何目标!")
 
+
         draw_box(original_img,
                  predict_boxes,
                  predict_classes,
@@ -109,12 +149,11 @@ def main():
                  category_index,
                  thresh=0.5,
                  line_thickness=3)
-        plt.imshow(original_img)
-        plt.show()
+        # plt.imshow(original_img)
+        # plt.show()
         # 保存预测的图片结果
         original_img.save("./results/test_result.jpg")
 
 
 if __name__ == '__main__':
     main()
-

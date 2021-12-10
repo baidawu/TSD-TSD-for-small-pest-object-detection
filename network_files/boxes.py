@@ -4,6 +4,15 @@ from torch import Tensor
 import torchvision
 import numpy as np
 import soft_nms
+import math
+import iou
+
+import pyximport
+pyximport.install()
+from cpython_nms import diounms
+
+# import cpu_nms as cpu_nms
+# cpu_nms.install()
 
 
 def nms_post(boxes, scores, iou_threshold):
@@ -85,25 +94,7 @@ def nms(boxes, scores, iou_threshold):
         by NMS, sorted in decreasing order of scores
     """
     return torch.ops.torchvision.nms(boxes, scores, iou_threshold)
-    # keep = torch.ops.torchvision.nms(boxes, scores, iou_threshold)
-    # print(boxes, scores)
-    # print()
-    # boxes = boxes.to("cpu").numpy()
-    # scores = scores.to("cpu").numpy()
-    # keep = py_cpu_softnms(boxes, scores, iou_threshold)
-    # # print(keep)
-    # keep = torch.LongTensor(keep).to("cuda")
-    # print(keep, keep.type())
 
-    # return py_cpu_softnms(boxes, scores, iou_threshold)
-    # return soft_nms(boxes, scores, iou_threshold)
-
-    # cuda = 1 if torch.cuda.is_available() else 0
-    # if cuda:
-    #     boxes = boxes.cuda()
-    #     scores = scores.cuda()
-    # keep = soft_nms.soft_nms_simple(boxes, scores, cuda=cuda)
-    # return keep
 
 def batched_nms_post(boxes, scores, idxs, iou_threshold):
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
@@ -122,7 +113,7 @@ def batched_nms_post(boxes, scores, idxs, iou_threshold):
         are expected to be in (x1, y1, x2, y2) format
     scores : Tensor[N]
         scores for each one of the boxes
-    idxs : Tensor[N]
+    idxs : Tensor[N] labels
         indices of the categories for each one of the boxes.
     iou_threshold : float
         discards all overlapping boxes
@@ -151,7 +142,11 @@ def batched_nms_post(boxes, scores, idxs, iou_threshold):
     offsets = idxs.to(boxes) * (max_coordinate + 1)
     # boxes加上对应层的偏移量后，保证不同类别/层之间boxes不会有重合的现象
     boxes_for_nms = boxes + offsets[:, None]
-    keep = nms_post(boxes_for_nms, scores, iou_threshold)
+
+    # keep = nms_post(boxes_for_nms, scores, iou_threshold)
+    dets = torch.cat((boxes_for_nms, scores), 1)
+    keep = diounms(dets, iou_threshold, 1.0)
+
     return keep
 
 
@@ -302,4 +297,21 @@ def box_iou(boxes1, boxes2):
 
     iou = inter / (area1[:, None] + area2 - inter)
     return iou
+    # return iou.bbox_diou(boxes1, boxes2)
 
+def box_iou_post(boxes1, boxes2):
+
+    # area1 = box_area(boxes1)
+    # area2 = box_area(boxes2)
+    #
+    # #  When the shapes do not match,
+    # #  the shape of the returned output tensor follows the broadcasting rules
+    # lt = torch.max(boxes1[:, None, :2], boxes2[:, :2])  # left-top [N,M,2]
+    # rb = torch.min(boxes1[:, None, 2:], boxes2[:, 2:])  # right-bottom [N,M,2]
+    #
+    # wh = (rb - lt).clamp(min=0)  # [N,M,2]
+    # inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
+    #
+    # iou = inter / (area1[:, None] + area2 - inter)
+    # return iou
+    return iou.bbox_diou(boxes1, boxes2)
