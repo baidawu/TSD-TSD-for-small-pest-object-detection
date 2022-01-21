@@ -75,7 +75,7 @@ def main():
     # category_index = {k: v for k, v in class_dict.items()}
 
     # load image
-    original_img = Image.open("./results/test.jpg")
+    original_img = Image.open("./results/test6.jpg")
 
     # from pil image to tensor, do not normalize image
     data_transform = transforms.Compose([transforms.ToTensor()])
@@ -117,4 +117,24 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

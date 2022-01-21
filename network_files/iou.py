@@ -7,27 +7,6 @@ def box_area(boxes):
 
     return (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
 
-def bbox_transform(deltas, weights):
-    wx, wy, ww, wh = weights
-    dx = deltas[:, 0::4] / wx
-    dy = deltas[:, 1::4] / wy
-    dw = deltas[:, 2::4] / ww
-    dh = deltas[:, 3::4] / wh
-
-    dw = torch.clamp(dw, max=np.log(1000. / 16.))
-    dh = torch.clamp(dh, max=np.log(1000. / 16.))
-
-    pred_ctr_x = dx
-    pred_ctr_y = dy
-    pred_w = torch.exp(dw)
-    pred_h = torch.exp(dh)
-
-    x1 = pred_ctr_x - 0.5 * pred_w
-    y1 = pred_ctr_y - 0.5 * pred_h
-    x2 = pred_ctr_x + 0.5 * pred_w
-    y2 = pred_ctr_y + 0.5 * pred_h
-
-    return x1.view(-1), y1.view(-1), x2.view(-1), y2.view(-1)
 
 def bbox_ciou(boxes1, boxes2, transform_weights=None):
 
@@ -35,6 +14,8 @@ def bbox_ciou(boxes1, boxes2, transform_weights=None):
     h_pred = torch.abs(boxes1[:, None, 3] - boxes1[:, None, 2])
     w_gt = torch.abs(boxes2[:, None, 1] - boxes2[:, None, 0])
     h_gt = torch.abs(boxes2[:, None, 3] - boxes2[:, None, 2])
+    w_gt = w_gt.view(1, -1)
+    h_gt = h_gt.view(1, -1)
 
     area1 = box_area(boxes1)
     area2 = box_area(boxes2)
@@ -47,11 +28,17 @@ def bbox_ciou(boxes1, boxes2, transform_weights=None):
     ltc = torch.min(boxes1[:, None, :2], boxes2[:, :2])
     rbc = torch.max(boxes1[:, None, 2:], boxes2[:, 2:])
 
-    x_center = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
-    y_center = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
-    x_center_g = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
-    y_center_g = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
+    # x_center = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
+    # y_center = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
+    # x_center_g = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
+    # y_center_g = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
 
+    x_center = boxes1[:, None, 0] + (boxes1[:, None, 2] - boxes1[:, None, 0]) / 2.
+    y_center = boxes1[:, None, 1] + (boxes1[:, None, 3] - boxes1[:, None, 1]) / 2.
+    x_center_g = boxes2[:, None, 0] + (boxes2[:, None, 2] - boxes2[:, None, 0]) / 2.
+    y_center_g = boxes2[:, None, 1] + (boxes2[:, None, 3] - boxes2[:, None, 1]) / 2.
+    x_center_g = x_center_g.view(1, -1)
+    y_center_g = y_center_g.view(1, -1)
 
     wh = (rb - lt).clamp(min=0)  # [N,M,2]
     inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
@@ -84,10 +71,17 @@ def bbox_diou(boxes1, boxes2, transform_weights=None):
     ltc = torch.min(boxes1[:, None, :2], boxes2[:, :2])
     rbc = torch.max(boxes1[:, None, 2:], boxes2[:, 2:])
 
-    x_center = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
-    y_center = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
-    x_center_g = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
-    y_center_g = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
+    # x_center = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
+    # y_center = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
+    # x_center_g = (boxes1[:, None, 1] + boxes1[:, None, 0]) / 2
+    # y_center_g = (boxes1[:, None, 3] + boxes1[:, None, 2]) / 2
+
+    x_center = boxes1[:, None, 0] + (boxes1[:, None, 2] - boxes1[:, None, 0]) / 2.
+    y_center = boxes1[:, None, 1] + (boxes1[:, None, 3] - boxes1[:, None, 1]) / 2.
+    x_center_g = boxes2[:, None, 0] + (boxes2[:, None, 2] - boxes2[:, None, 0]) / 2.
+    y_center_g = boxes2[:, None, 1] + (boxes2[:, None, 3] - boxes2[:, None, 1]) / 2.
+    x_center_g = x_center_g.view(1, -1)
+    y_center_g = y_center_g.view(1, -1)
 
     wh = (rb - lt).clamp(min=0)  # [N,M,2]
     inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
@@ -122,6 +116,7 @@ def bbox_giou(boxes1, boxes2, transform_weights=None):
 
     whc = (rbc - ltc).clamp(min=0)
     area_c = whc[:, :, 0] * whc[:, :, 1] + 1e-7
+
     giou = iou - ((area_c - union) / area_c)
 
     return giou

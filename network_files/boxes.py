@@ -6,6 +6,7 @@ import numpy as np
 import soft_nms
 import math
 import iou
+import distance
 
 import pyximport
 pyximport.install()
@@ -62,7 +63,9 @@ def nms_post(boxes, scores, iou_threshold):
         boxes = boxes.cuda()
         scores = scores.cuda()
     # keep = soft_nms.soft_nms_simple(boxes, scores, iou_threshold, cuda=cuda)
-    keep = soft_nms.soft_nms_pytorch(boxes, scores, iou_threshold, cuda=cuda)
+    # keep = soft_nms.soft_nms_pytorch(boxes, scores, iou_threshold, cuda=cuda)
+    keep = soft_nms.trid_nms(boxes, scores, iou_threshold)
+
     return keep
 
 def nms(boxes, scores, iou_threshold):
@@ -143,9 +146,10 @@ def batched_nms_post(boxes, scores, idxs, iou_threshold):
     # boxes加上对应层的偏移量后，保证不同类别/层之间boxes不会有重合的现象
     boxes_for_nms = boxes + offsets[:, None]
 
-    # keep = nms_post(boxes_for_nms, scores, iou_threshold)
-    dets = torch.cat((boxes_for_nms, scores), 1)
-    keep = diounms(dets, iou_threshold, 1.0)
+    keep = nms_post(boxes_for_nms, scores, iou_threshold)
+
+    # dets = torch.cat((boxes_for_nms, scores), 1)
+    # keep = diounms(dets, iou_threshold, 1.0)
 
     return keep
 
@@ -296,6 +300,7 @@ def box_iou(boxes1, boxes2):
     inter = wh[:, :, 0] * wh[:, :, 1]  # [N,M]
 
     iou = inter / (area1[:, None] + area2 - inter)
+    # print(boxes1.size(), boxes2.size(), iou.size())
     return iou
     # return iou.bbox_diou(boxes1, boxes2)
 
@@ -314,4 +319,10 @@ def box_iou_post(boxes1, boxes2):
     #
     # iou = inter / (area1[:, None] + area2 - inter)
     # return iou
-    return iou.bbox_diou(boxes1, boxes2)
+    # return iou.bbox_giou(boxes1, boxes2)
+    return iou.bbox_ciou(boxes1, boxes2)
+
+def box_dist(boxes1, boxes2):
+
+    return distance.tri_dist(boxes1, boxes2)
+    # return distance.t_dist(boxes1, boxes2)

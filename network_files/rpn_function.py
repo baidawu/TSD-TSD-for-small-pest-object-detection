@@ -4,11 +4,13 @@ import torch
 from torch import nn, Tensor
 from torch.nn import functional as F
 import torchvision
+import GIoU_loss
 
 import loss
 from . import det_utils
 from . import boxes as box_ops
 from .image_list import ImageList
+import distance
 
 
 @torch.jit.unused
@@ -356,12 +358,35 @@ class RegionProposalNetwork(torch.nn.Module):
         # use during training
         # 计算anchors与真实bbox的iou
         # self.box_similarity = box_ops.box_iou
-        self.box_similarity = box_ops.box_iou_post
+        self.box_similarity = box_ops.box_dist
+        # self.box_similarity = box_ops.box_iou_post
+
         self.proposal_matcher = det_utils.Matcher(
             fg_iou_thresh,  # 当iou大于fg_iou_thresh(0.7)时视为正样本
             bg_iou_thresh,  # 当iou小于bg_iou_thresh(0.3)时视为负样本
             allow_low_quality_matches=True
         )
+
+        # self.proposal_matcher = det_utils.Matcher(
+        #     high_threshold=0.9,  # default: 0.5
+        #     low_threshold=0.2,  # default: 0.5
+        #     allow_low_quality_matches=True)
+
+        # self.proposal_matcher = det_utils.Matcher(
+        #     high_threshold=0.8,  # default: 0.5
+        #     low_threshold=-0.2,  # default: 0.5
+        #     allow_low_quality_matches=True)
+
+        # self.proposal_matcher = det_utils.Matcher(
+        #     high_threshold=1.5,  # default: 0.5
+        #     low_threshold=0.5,  # default: 0.5
+        #     allow_low_quality_matches=True)
+
+
+        # self.proposal_matcher_center_dist = det_utils.Matcher_center_dist(
+        #     high_threshold=0.7,  # default: 0.5
+        #     low_threshold=0.2,  # default: 0.5
+        #     allow_low_quality_matches=False)
 
         self.fg_bg_sampler = det_utils.BalancedPositiveNegativeSampler(
             batch_size_per_image, positive_fraction  # 256, 0.5
@@ -408,10 +433,15 @@ class RegionProposalNetwork(torch.nn.Module):
             else:
                 # 计算anchors与真实bbox的iou信息
                 # set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
-                match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image)
+                # match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image)
+                match_quality_matrix = box_ops.box_dist(gt_boxes, anchors_per_image)
                 # match_quality_matrix = box_ops.box_iou_post(gt_boxes, anchors_per_image)
                 # 计算每个anchors与gt匹配iou最大的索引（如果iou<0.3索引置为-1，0.3<iou<0.7索引为-2）
                 matched_idxs = self.proposal_matcher(match_quality_matrix)
+
+                # dist > 1 背景， 0.7 < dist < 1 废弃， dist < 0.7 正
+                # match_quality_matrix = box_ops.box_dist(gt_boxes, anchors_per_image)
+                # matched_idxs = self.proposal_matcher_center_dist(match_quality_matrix)
 
                 # get the targets corresponding GT for each proposal
                 # NB: need to clamp the indices because we can have a single
@@ -428,13 +458,20 @@ class RegionProposalNetwork(torch.nn.Module):
                 labels_per_image = matched_idxs >= 0
                 labels_per_image = labels_per_image.to(dtype=torch.float32)
 
+
                 # background (negative examples)
                 bg_indices = matched_idxs == self.proposal_matcher.BELOW_LOW_THRESHOLD  # -1
                 labels_per_image[bg_indices] = 0.0
 
+                # bg_indices = matched_idxs == self.proposal_matcher_center_dist.BELOW_LOW_THRESHOLD  # -1
+                # labels_per_image[bg_indices] = 0.0
+
                 # discard indices that are between thresholds
                 inds_to_discard = matched_idxs == self.proposal_matcher.BETWEEN_THRESHOLDS  # -2
                 labels_per_image[inds_to_discard] = -1.0
+
+                # inds_to_discard = matched_idxs == self.proposal_matcher_center_dist.BETWEEN_THRESHOLDS  # -2
+                # labels_per_image[inds_to_discard] = -1  # -1 is ignored by sampler
 
             labels.append(labels_per_image)
             matched_gt_boxes.append(matched_gt_boxes_per_image)
@@ -529,6 +566,7 @@ class RegionProposalNetwork(torch.nn.Module):
             # non-maximum suppression, independently done per level
             # 前处理：采用nms
             keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
+            # keep = box_ops.batched_nms_post(boxes, scores, lvl, iou_threshold=0.9)
 
             # keep only topk scoring predictions
             keep = keep[: self.post_nms_top_n()]
@@ -568,23 +606,37 @@ class RegionProposalNetwork(torch.nn.Module):
         regression_targets = torch.cat(regression_targets, dim=0)
 
         # 计算边界框回归损失
-        box_loss = det_utils.smooth_l1_loss(
+        # box_loss = det_utils.smooth_l1_loss(
+        #     pred_bbox_deltas[sampled_pos_inds],
+        #     regression_targets[sampled_pos_inds],
+        #     beta=1 / 9,
+        #     size_average=False,
+        # ) / (sampled_inds.numel())
+
+        box_loss = distance.tri_loss(
             pred_bbox_deltas[sampled_pos_inds],
             regression_targets[sampled_pos_inds],
-            beta=1 / 9,
-            size_average=False,
         ) / (sampled_inds.numel())
+
+        # box_loss = GIoU_loss.compute_giou(
+        #     pred_bbox_deltas[sampled_pos_inds],
+        #     regression_targets[sampled_pos_inds],
+        # ) / (sampled_inds.numel())
 
         # 计算目标预测概率损失
         objectness_loss = F.binary_cross_entropy_with_logits(
             objectness[sampled_inds], labels[sampled_inds]
         )
+
+
         # print(objectness[sampled_inds], labels[sampled_inds])
         # center_loss = loss.CenterLoss(num_classes=2)
         # objectness_center_loss = center_loss(objectness[sampled_inds], labels[sampled_inds])
         #
         # objectness_loss = objectness_loss + 0.1 * objectness_center_loss
 
+        # bfl = loss.BFocalLoss(alpha=0.25, gamma=2)
+        # objectness_loss = bfl(objectness[sampled_inds], labels[sampled_inds])
 
         return objectness_loss, box_loss
 

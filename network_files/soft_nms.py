@@ -4,7 +4,6 @@ import numpy as np
 import copy
 import random
 
-import numpy as np
 
 
 
@@ -54,16 +53,6 @@ def soft_nms_pytorch(dets, box_scores, iou_thresh, sigma=0.5, thresh=0.1, cuda=0
                 scores[i], scores[maxpos.item() + i + 1] = scores[maxpos.item() + i + 1].clone(), scores[i].clone()
                 areas[i], areas[maxpos + i + 1] = areas[maxpos + i + 1].clone(), areas[i].clone()
 
-        # IoU calculate
-        # yy1 = np.maximum(dets[i, 0].to("cpu").numpy(), dets[pos:, 0].to("cpu").numpy())
-        # # yy1 = max(dets[i,1],dets)
-        # xx1 = np.maximum(dets[i, 1].to("cpu").numpy(), dets[pos:, 1].to("cpu").numpy())
-        # yy2 = np.minimum(dets[i, 2].to("cpu").numpy(), dets[pos:, 2].to("cpu").numpy())
-        # xx2 = np.minimum(dets[i, 3].to("cpu").numpy(), dets[pos:, 3].to("cpu").numpy())
-        #
-        # w = np.maximum(0.0, xx2 - xx1 + 1)
-        # h = np.maximum(0.0, yy2 - yy1 + 1)
-        # inter = torch.tensor(w * h).cuda() if cuda else torch.tensor(w * h)
 
         yy1 = torch.max(dets[i, 0], dets[pos:, 0])
         xx1 = torch.max(dets[i, 1], dets[pos:, 1])
@@ -172,6 +161,51 @@ def soft_nms_simple(dets, box_scores, iou_thresh, sigma=0.5, thresh=0.5, cuda=0)
     # print(scores)
     keep = dets[:, 4][scores > thresh].long()
     # print(keep)
+
+    return keep
+
+# def IOU(box_a, box_b):
+#     inter = intersect(box_a, box_b)
+#     area_a = ((box_a[:, 2]-box_a[:, 0]) *
+#               (box_a[:, 3]-box_a[:, 1])).unsqueeze(1).expand_as(inter)  # [A,B]
+#     area_b = ((box_b[:, 2]-box_b[:, 0]) *
+#               (box_b[:, 3]-box_b[:, 1])).unsqueeze(0).expand_as(inter)  # [A,B]
+#     union = area_a + area_b - inter
+#     return inter / union  # [A,B]
+
+def tri_dist(boxes1, boxes2):
+
+    x_center1 = boxes1[:, None, 0] + (boxes1[:, None, 2] - boxes1[:, None, 0]) / 2.
+    y_center1 = boxes1[:, None, 1] + (boxes1[:, None, 3] - boxes1[:, None, 1]) / 2.
+
+    x_center2 = boxes2[:, None, 0] + (boxes2[:, None, 2] - boxes2[:, None, 0]) / 2.
+    y_center2 = boxes2[:, None, 1] + (boxes2[:, None, 3] - boxes2[:, None, 1]) / 2.
+    x_center2 = x_center2.view(1, -1)
+    y_center2 = y_center2.view(1, -1)
+
+    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+
+    distance = dist / 35.63
+    distance = 1 - distance
+
+    # distance越大越好（类似iou,越大越好）
+    return distance
+
+
+def trid_nms(boxes, scores, thresh):
+
+    _, idx = scores.sort(0, descending=True)  # descending表示降序
+    boxes_idx = boxes[idx]
+    trid = tri_dist(boxes_idx, boxes_idx).triu_(diagonal=1)  # 取上三角矩阵，不包含对角线
+    B = trid
+    while 1:
+        A = B
+        maxA, _ = torch.max(A, dim=0)
+        E = (maxA <= thresh).float().unsqueeze(1).expand_as(A)
+        B = trid.mul(E)
+        if A.equal(B) == True:
+            break
+    keep = idx[maxA <= thresh]
 
     return keep
 

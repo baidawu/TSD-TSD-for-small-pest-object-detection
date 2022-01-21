@@ -2,6 +2,7 @@ import torch
 import math
 from typing import List, Tuple
 from torch import Tensor
+import numpy as np
 
 
 class BalancedPositiveNegativeSampler(object):
@@ -325,9 +326,11 @@ class Matcher(object):
         # match_quality_matrix is M (gt) x N (predicted)
         # Max over gt elements (dim 0) to find best gt candidate for each prediction
         # M x N 的每一列代表一个anchors与所有gt的匹配iou值
+        # match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image)
         # matched_vals代表每列的最大值，即每个anchors与所有gt匹配的最大iou值
         # matches对应最大值所在的索引
         matched_vals, matches = match_quality_matrix.max(dim=0)  # the dimension to reduce.
+
         if self.allow_low_quality_matches:
             all_matches = matches.clone()
         else:
@@ -404,6 +407,106 @@ def smooth_l1_loss(input, target, beta: float = 1. / 9, size_average: bool = Tru
     # cond = n < beta
     cond = torch.lt(n, beta)
     loss = torch.where(cond, 0.5 * n ** 2 / beta, n - 0.5 * beta)
+    # print("smooth:{}".format(loss.sum()))
+    # print("l1 loss:{}\n{}\n{}".format(n, cond, loss))
     if size_average:
         return loss.mean()
+    # print(input.size(), target.size(), loss.size())
     return loss.sum()
+
+
+class kmeans_Matcher(object):
+    BELOW_LOW_THRESHOLD = -1
+    BETWEEN_THRESHOLDS = -2
+
+    __annotations__ = {
+        'BELOW_LOW_THRESHOLD': int,
+        'BETWEEN_THRESHOLDS': int,
+    }
+
+    def __init__(self, high_threshold, low_threshold, allow_low_quality_matches=False):
+        # type: (float, float, bool) -> None
+
+        self.BELOW_LOW_THRESHOLD = -1
+        self.BETWEEN_THRESHOLDS = -2
+        assert low_threshold <= high_threshold
+        self.high_threshold = high_threshold  # 1
+        self.low_threshold = low_threshold    # 0.7
+        self.allow_low_quality_matches = allow_low_quality_matches
+
+    def __call__(self, match_quality_matrix):
+
+        if match_quality_matrix.numel() == 0:
+            # empty targets or proposals not supported during training
+            if match_quality_matrix.shape[0] == 0:
+                raise ValueError(
+                    "No ground-truth boxes available for one of the images "
+                    "during training")
+            else:
+                raise ValueError(
+                    "No proposal boxes available for one of the images "
+                    "during training")
+
+        matched_vals, matches = match_quality_matrix.min(dim=0)  # the dimension to reduce.
+        if self.allow_low_quality_matches:
+            all_matches = matches.clone()
+        else:
+            all_matches = None
+
+
+        below_low_threshold = matched_vals > self.high_threshold
+        between_thresholds = (matched_vals >= self.low_threshold) & (
+            matched_vals < self.high_threshold
+        )
+        # iou小于low_threshold的matches索引置为-1
+        matches[below_low_threshold] = self.BELOW_LOW_THRESHOLD  # -1
+
+        # iou在[low_threshold, high_threshold]之间的matches索引置为-2
+        matches[between_thresholds] = self.BETWEEN_THRESHOLDS    # -2
+
+        if self.allow_low_quality_matches:
+            assert all_matches is not None
+            self.set_low_quality_matches_(matches, all_matches, match_quality_matrix)
+
+        return matches
+
+    def set_low_quality_matches_(self, matches, all_matches, match_quality_matrix):
+        """
+        Produce additional matches for predictions that have only low-quality matches.
+        Specifically, for each ground-truth find the set of predictions that have
+        maximum overlap with it (including ties); for each prediction in that set, if
+        it is unmatched, then match it to the ground-truth with which it has the highest
+        quality value.
+        """
+        # For each gt, find the prediction with which it has highest quality
+        # 对于每个gt boxes寻找与其iou最大的anchor，
+        # highest_quality_foreach_gt为匹配到的最大iou值
+        highest_quality_foreach_gt, _ = match_quality_matrix.max(dim=1)  # the dimension to reduce.
+
+        # Find highest quality match available, even if it is low, including ties
+        # 寻找每个gt boxes与其iou最大的anchor索引，一个gt匹配到的最大iou可能有多个anchor
+        # gt_pred_pairs_of_highest_quality = torch.nonzero(
+        #     match_quality_matrix == highest_quality_foreach_gt[:, None]
+        # )
+        gt_pred_pairs_of_highest_quality = torch.where(
+            torch.eq(match_quality_matrix, highest_quality_foreach_gt[:, None])
+        )
+        # Example gt_pred_pairs_of_highest_quality:
+        #   tensor([[    0, 39796],
+        #           [    1, 32055],
+        #           [    1, 32070],
+        #           [    2, 39190],
+        #           [    2, 40255],
+        #           [    3, 40390],
+        #           [    3, 41455],
+        #           [    4, 45470],
+        #           [    5, 45325],
+        #           [    5, 46390]])
+        # Each row is a (gt index, prediction index)
+        # Note how gt items 1, 2, 3, and 5 each have two ties
+
+        # gt_pred_pairs_of_highest_quality[:, 0]代表是对应的gt index(不需要)
+        # pre_inds_to_update = gt_pred_pairs_of_highest_quality[:, 1]
+        pre_inds_to_update = gt_pred_pairs_of_highest_quality[1]
+        # 保留该anchor匹配gt最大iou的索引，即使iou低于设定的阈值
+        matches[pre_inds_to_update] = all_matches[pre_inds_to_update]

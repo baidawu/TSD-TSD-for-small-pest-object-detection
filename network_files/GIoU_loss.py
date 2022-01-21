@@ -231,6 +231,8 @@ def compute_diou(output, target, transform_weights=None):
     # diouk = ((1 - diouk) * iou_weights).sum(0) / output.size(0)
     diou_loss = (1 - diouk).sum(0)
 
+    # print("diou:{}, {}, {}".format(iouk.size(), diouk.size(), diou_loss))
+
     return diou_loss
 
 def compute_giou(output, target, transform_weights=None):
@@ -267,3 +269,48 @@ def compute_giou(output, target, transform_weights=None):
     giou_loss = (1 - giouk).sum(0)
 
     return giou_loss
+
+def compute_tiou(output, target, transform_weights=None):
+    if transform_weights is None:
+        transform_weights = (1., 1., 1., 1.)
+    x1, y1, x2, y2 = bbox_transform(output, transform_weights)
+    x1g, y1g, x2g, y2g = bbox_transform(target, transform_weights)
+
+    x2 = torch.max(x1, x2)
+    y2 = torch.max(y1, y2)
+
+    x_p = (x2 + x1) / 2
+    y_p = (y2 + y1) / 2
+    x_g = (x1g + x2g) / 2
+    y_g = (y1g + y2g) / 2
+
+    xkis1 = torch.max(x1, x1g)
+    ykis1 = torch.max(y1, y1g)
+    xkis2 = torch.min(x2, x2g)
+    ykis2 = torch.min(y2, y2g)
+
+    xc1 = torch.min(x1, x1g)
+    yc1 = torch.min(y1, y1g)
+    xc2 = torch.max(x2, x2g)
+    yc2 = torch.max(y2, y2g)
+
+
+    temp = torch.zeros(x1.shape).cuda()
+    intsctk = torch.where((ykis2 - ykis1 > 0) & (xkis2 - xkis1 > 0), (xkis2 - xkis1) * (ykis2 - ykis1), temp)
+    unionk = (x2 - x1) * (y2 - y1) + (x2g - x1g) * (y2g - y1g) - intsctk + 1e-7
+    iouk = intsctk / unionk
+
+    c = ((xc2 - xc1) ** 2) + ((yc2 - yc1) ** 2)
+    r1 = (x2 - x_p) ** 2 + (y2 - y_p) ** 2
+    r2 = (x2g - x_g) ** 2 + (y2g - y_g) ** 2
+    d = ((x_p - x_g) ** 2) + ((y_p - y_g) ** 2)
+    u = d / (c - r1 - r2 + 1e-7)
+
+    tiouk = iouk - u
+
+    tiou_loss = (1 - tiouk).sum(0)
+
+    # print("tiou:{}, {}, {}".format(iouk.size(), tiouk.size(), tiou_loss))
+
+    return tiou_loss
+

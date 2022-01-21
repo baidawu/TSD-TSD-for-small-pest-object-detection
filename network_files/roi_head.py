@@ -9,6 +9,7 @@ import GIoU_loss
 import math
 import sys
 import rep_loss
+import distance
 
 from . import det_utils
 from . import boxes as box_ops
@@ -47,11 +48,11 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.25)
     # fl = FocalLoss(class_num=num_classes, gamma=3, alpha=0.25)
     # fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.25, use_alpha=True)
-    # fl = FocalLoss(class_num=num_classes, alpha=0.75,  gamma=0.1, use_alpha=True)  # loss is nan
-    # fl = FocalLoss(class_num=num_classes, alpha=0.75, gamma=0.2, use_alpha=True)  # loss is nan
-    # fl = FocalLoss(class_num=num_classes, alpha=0.5, gamma=0.5, use_alpha=True)  # loss is nan
+    # # fl = FocalLoss(class_num=num_classes, alpha=0.75,  gamma=0.1, use_alpha=True)  # loss is nan
+    # # fl = FocalLoss(class_num=num_classes, alpha=0.75, gamma=0.2, use_alpha=True)  # loss is nan
+    # # fl = FocalLoss(class_num=num_classes, alpha=0.5, gamma=0.5, use_alpha=True)  # loss is nan
     # fl = FocalLoss(class_num=num_classes, alpha=0.25, gamma=1, use_alpha=True)
-    # fl = FocalLoss(class_num=num_classes, alpha=0.25, gamma=3, use_alpha=True)2
+    # fl = FocalLoss(class_num=num_classes, alpha=0.25, gamma=3, use_alpha=True)
     # fl = FocalLoss(class_num=num_classes, alpha=0.25, gamma=5, use_alpha=True)
     # print(class_logits.dim(),labels.dim())
     classification_loss = fl(class_logits, labels)
@@ -90,8 +91,27 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
         beta=1 / 9,
         size_average=False,
     ) / labels.numel()
-    # box_loss = loss_attr
 
+    # loss_attr = GIoU_loss.compute_ciou(
+    #     # 获取指定索引proposal的指定类别box信息
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
+    #     regression_targets[sampled_pos_inds_subset],  # target
+    # ) / labels.numel()
+
+
+    # loss_attr = distance.tri_loss(
+    #     # 获取指定索引proposal的指定类别box信息
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
+    #     regression_targets[sampled_pos_inds_subset],  # target
+    # ) / labels.numel()
+    #
+    box_loss = loss_attr
+    # loss_attr = GIoU_loss.compute_tiou(
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
+    #     regression_targets[sampled_pos_inds_subset],
+    # ) / labels.numel()
+
+    # print("triangle loss:{}".format(loss_attr))
     # loss_rep_gt = rep_loss.rep_gt_loss(
     #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
     #     regression_targets[sampled_pos_inds_subset],  # target
@@ -100,30 +120,24 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     # ) / labels.numel()
     # #
     # box_loss = loss_attr + 0.1 * loss_rep_gt
+    #
+    # loss_rep_gt = rep_loss.smooth_rep_loss(
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
+    #     regression_targets[sampled_pos_inds_subset],  # target
+    #     beta=1 / 9,
+    #     size_average=False,
+    # ) / labels.numel()
+    #
+    # box_loss = loss_attr - 0.1 * loss_rep_gt
+    #
+    # loss_rep_box = rep_loss.smooth_rep_box_loss(
+    #     box_regression[sampled_pos_inds_subset, labels_pos],  # input
+    #     labels[sampled_pos_inds_subset]
+    # )
 
-    loss_rep_gt = rep_loss.smooth_rep_loss(
-        box_regression[sampled_pos_inds_subset, labels_pos],  # input
-        regression_targets[sampled_pos_inds_subset],  # target
-        beta=1 / 9,
-        size_average=False,
-    ) / labels.numel()
-
-    box_loss = loss_attr - 0.1 * loss_rep_gt
-
-    loss_rep_box = rep_loss.smooth_rep_box_loss(
-        box_regression[sampled_pos_inds_subset, labels_pos],  # input
-        labels[sampled_pos_inds_subset]
-    )
-
-    # if not math.isfinite(loss_rep_box):  # 当计算的损失为无穷大时停止训练
-    #     print("rep_box_loss is nan, stop training!")
-    #     print("box_regression:{}".format(box_regression))
-    #     print("sampled_pos_inds_subset:{}\nlabels_pos:{}".format(sampled_pos_inds_subset, labels_pos))
-    #     print("boxes:{}\nlabel:{}".format(box_regression[sampled_pos_inds_subset, labels_pos], labels[sampled_pos_inds_subset]))
-    #     print("loss_attr:{} loss_rep_gt:{} loss_rep_box:{}".format(loss_attr, loss_rep_gt, loss_rep_box))
-    #     sys.exit(1)
 
     # box_loss = loss_attr - 0.1 * loss_rep_gt + 0.1 * loss_rep_box
+    # box_loss = loss_attr - 0.5 * loss_rep_gt + 0.5 * loss_rep_box
 
     # print("{}++++{}-----{}++++{}".format(box_loss, loss_attr, loss_rep_gt, loss_rep_box))
 
@@ -136,7 +150,7 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     #     reduction='sum',
     # ) / labels.numel()
 
-    # box_loss = GIoU_loss.compute_giou(
+    # box_loss = GIoU_loss.compute_diou(
     #     # 获取指定索引proposal的指定类别box信息
     #     box_regression[sampled_pos_inds_subset, labels_pos],  # predict
     #     regression_targets[sampled_pos_inds_subset],  # ground truth
@@ -166,12 +180,30 @@ class RoIHeads(torch.nn.Module):
                  detection_per_img):  # default: 100
         super(RoIHeads, self).__init__()
 
+        # self.box_similarity = box_ops.box_dist
         self.box_similarity = box_ops.box_iou
+        # self.box_similarity = box_ops.box_iou_post
         # assign ground-truth boxes for each proposal
         self.proposal_matcher = det_utils.Matcher(
             fg_iou_thresh,  # default: 0.5
             bg_iou_thresh,  # default: 0.5
             allow_low_quality_matches=False)
+
+        # self.proposal_matcher = det_utils.Matcher(
+        #     high_threshold=0.6,  # default: 0.5
+        #     low_threshold=0.1,  # default: 0.5
+        #     allow_low_quality_matches=False)
+
+        # tri-dist2:分类计算dist
+        # self.proposal_matcher = det_utils.Matcher(
+        #     high_threshold=1,  # default: 0.5
+        #     low_threshold=0,  # default: 0.5
+        #     allow_low_quality_matches=False)
+
+        # self.proposal_matcher_center_dist = det_utils.Matcher_center_dist(
+        #     high_threshold=0.8,  # default: 0.5
+        #     low_threshold=0.4,  # default: 0.5
+        #     allow_low_quality_matches=False)
 
         self.fg_bg_sampler = det_utils.BalancedPositiveNegativeSampler(
             batch_size_per_image,  # default: 512
@@ -217,12 +249,17 @@ class RoIHeads(torch.nn.Module):
             else:
                 #  set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
                 # 计算proposal与每个gt_box的iou重合度
-                # match_quality_matrix = box_ops.box_iou_post(gt_boxes_in_image, proposals_in_image)
+                # match_quality_matrix = box_ops.box_dist(gt_boxes_in_image, proposals_in_image)
                 match_quality_matrix = box_ops.box_iou(gt_boxes_in_image, proposals_in_image)
+                # match_quality_matrix = box_ops.box_iou_post(gt_boxes_in_image, proposals_in_image)
 
                 # 计算proposal与每个gt_box匹配的iou最大值，并记录索引，
                 # iou < low_threshold索引值为 -1， low_threshold <= iou < high_threshold索引值为 -2
                 matched_idxs_in_image = self.proposal_matcher(match_quality_matrix)
+
+                # dist > 1 背景， 0.7 < dist < 1 废弃， dist < 0.7 正
+                # match_quality_matrix = box_ops.box_dist(gt_boxes_in_image, proposals_in_image)
+                # matched_idxs_in_image = self.proposal_matcher_center_dist(match_quality_matrix)
 
                 # 限制最小值，防止匹配标签时出现越界的情况
                 # 注意-1, -2对应的gt索引会调整到0,获取的标签类别为第0个gt的类别（实际上并不是）,后续会进一步处理
@@ -231,15 +268,21 @@ class RoIHeads(torch.nn.Module):
                 labels_in_image = gt_labels_in_image[clamped_matched_idxs_in_image]
                 labels_in_image = labels_in_image.to(dtype=torch.int64)
 
-                # label background (below the low threshold)
-                # 将gt索引为-1的类别设置为0，即背景，负样本
+                # # label background (below the low threshold)
+                # # 将gt索引为-1的类别设置为0，即背景，负样本
                 bg_inds = matched_idxs_in_image == self.proposal_matcher.BELOW_LOW_THRESHOLD  # -1
                 labels_in_image[bg_inds] = 0
 
-                # label ignore proposals (between low and high threshold)
-                # 将gt索引为-2的类别设置为-1, 即废弃样本
+                # bg_inds = matched_idxs_in_image == self.proposal_matcher_center_dist.BELOW_LOW_THRESHOLD  # -1
+                # labels_in_image[bg_inds] = 0
+
+                # # label ignore proposals (between low and high threshold)
+                # # 将gt索引为-2的类别设置为-1, 即废弃样本
                 ignore_inds = matched_idxs_in_image == self.proposal_matcher.BETWEEN_THRESHOLDS  # -2
                 labels_in_image[ignore_inds] = -1  # -1 is ignored by sampler
+
+                # ignore_inds = matched_idxs_in_image == self.proposal_matcher_center_dist.BETWEEN_THRESHOLDS  # -2
+                # labels_in_image[ignore_inds] = -1  # -1 is ignored by sampler
 
             matched_idxs.append(clamped_matched_idxs_in_image)
             labels.append(labels_in_image)
@@ -425,6 +468,7 @@ class RoIHeads(torch.nn.Module):
             # 执行nms处理，执行后的结果会按照scores从大到小进行排序返回
             # 后处理：采用soft-nms
             keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+            # keep = box_ops.batched_nms_post(boxes, scores, labels, iou_threshold=0.6)
 
             # keep = box_ops.nms_post(boxes, scores, self.nms_thresh)
             # keep = box_ops.batched_nms_post(boxes, scores, labels, self.nms_thresh)
