@@ -2,18 +2,42 @@ import collections
 import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 import numpy as np
+#
+# STANDARD_COLORS = [
+#     'AliceBlue', 'Chartreuse', 'Aqua', 'Aquamarine', 'Azure', 'Beige', 'Bisque',
+#     'BlanchedAlmond', 'BlueViolet', 'BurlyWood', 'CadetBlue', 'AntiqueWhite',
+#     'Chocolate', 'Coral', 'CornflowerBlue', 'Cornsilk', 'Crimson', 'Cyan',
+#     'DarkCyan', 'DarkGoldenRod', 'DarkGrey', 'DarkKhaki', 'DarkOrange',
+#     'DarkOrchid', 'DarkSalmon', 'DarkSeaGreen', 'DarkTurquoise', 'DarkViolet',
+#     'DeepPink', 'DeepSkyBlue', 'DodgerBlue', 'FireBrick', 'FloralWhite',
+#     'ForestGreen', 'Fuchsia', 'Gainsboro', 'GhostWhite', 'Gold', 'GoldenRod',
+#     'Salmon', 'Tan', 'HoneyDew', 'HotPink', 'IndianRed', 'Ivory', 'Khaki',
+#     'Lavender', 'LavenderBlush', 'LawnGreen', 'LemonChiffon', 'LightBlue',
+#     'LightCoral', 'LightCyan', 'LightGoldenRodYellow', 'LightGray', 'LightGrey',
+#     'LightGreen', 'LightPink', 'LightSalmon', 'LightSeaGreen', 'LightSkyBlue',
+#     'LightSlateGray', 'LightSlateGrey', 'LightSteelBlue', 'LightYellow', 'Lime',
+#     'LimeGreen', 'Linen', 'Magenta', 'MediumAquaMarine', 'MediumOrchid',
+#     'MediumPurple', 'MediumSeaGreen', 'MediumSlateBlue', 'MediumSpringGreen',
+#     'MediumTurquoise', 'MediumVioletRed', 'MintCream', 'MistyRose', 'Moccasin',
+#     'NavajoWhite', 'OldLace', 'Olive', 'OliveDrab', 'Orange', 'OrangeRed',
+#     'Orchid', 'PaleGoldenRod', 'PaleGreen', 'PaleTurquoise', 'PaleVioletRed',
+#     'PapayaWhip', 'PeachPuff', 'Peru', 'Pink', 'Plum', 'PowderBlue', 'Purple',
+#     'Red', 'RosyBrown', 'RoyalBlue', 'SaddleBrown', 'Green', 'SandyBrown',
+#     'SeaGreen', 'SeaShell', 'Sienna', 'Silver', 'SkyBlue', 'SlateBlue',
+#     'SlateGray', 'SlateGrey', 'Snow', 'SpringGreen', 'SteelBlue', 'GreenYellow',
+#     'Teal', 'Thistle', 'Tomato', 'Turquoise', 'Violet', 'Wheat', 'White',
+#     'WhiteSmoke', 'Yellow', 'YellowGreen'
+# ]
 
 STANDARD_COLORS = [
-    'AliceBlue', 'Chartreuse', 'Aqua', 'Aquamarine', 'Azure', 'Beige', 'Bisque',
-    'BlanchedAlmond', 'BlueViolet', 'BurlyWood', 'CadetBlue', 'AntiqueWhite',
-    'Chocolate', 'Coral', 'CornflowerBlue', 'Cornsilk', 'Crimson', 'Cyan',
-    'DarkCyan', 'DarkGoldenRod', 'DarkGrey', 'DarkKhaki', 'DarkOrange',
-    'DarkOrchid', 'DarkSalmon', 'DarkSeaGreen', 'DarkTurquoise', 'DarkViolet',
-    'DeepPink', 'DeepSkyBlue', 'DodgerBlue', 'FireBrick', 'FloralWhite',
-    'ForestGreen', 'Fuchsia', 'Gainsboro', 'GhostWhite', 'Gold', 'GoldenRod',
-    'Salmon', 'Tan', 'HoneyDew', 'HotPink', 'IndianRed', 'Ivory', 'Khaki',
-    'Lavender', 'LavenderBlush', 'LawnGreen', 'LemonChiffon', 'LightBlue',
-    'LightCoral', 'LightCyan', 'LightGoldenRodYellow', 'LightGray', 'LightGrey',
+    'AliceBlue',
+    'BlanchedAlmond',
+    'Cyan', 'Red',
+    'DeepPink', 'DeepSkyBlue',
+    'ForestGreen',
+    'Salmon', 'HotPink', 'IndianRed', 'Ivory', 'Khaki',
+    'LightBlue', 'Yellow', 'YellowGreen',
+    'LightGoldenRodYellow',
     'LightGreen', 'LightPink', 'LightSalmon', 'LightSeaGreen', 'LightSkyBlue',
     'LightSlateGray', 'LightSlateGrey', 'LightSteelBlue', 'LightYellow', 'Lime',
     'LimeGreen', 'Linen', 'Magenta', 'MediumAquaMarine', 'MediumOrchid',
@@ -22,11 +46,11 @@ STANDARD_COLORS = [
     'NavajoWhite', 'OldLace', 'Olive', 'OliveDrab', 'Orange', 'OrangeRed',
     'Orchid', 'PaleGoldenRod', 'PaleGreen', 'PaleTurquoise', 'PaleVioletRed',
     'PapayaWhip', 'PeachPuff', 'Peru', 'Pink', 'Plum', 'PowderBlue', 'Purple',
-    'Red', 'RosyBrown', 'RoyalBlue', 'SaddleBrown', 'Green', 'SandyBrown',
+    'RosyBrown', 'RoyalBlue', 'SaddleBrown', 'Green', 'SandyBrown',
     'SeaGreen', 'SeaShell', 'Sienna', 'Silver', 'SkyBlue', 'SlateBlue',
     'SlateGray', 'SlateGrey', 'Snow', 'SpringGreen', 'SteelBlue', 'GreenYellow',
     'Teal', 'Thistle', 'Tomato', 'Turquoise', 'Violet', 'Wheat', 'White',
-    'WhiteSmoke', 'Yellow', 'YellowGreen'
+    'WhiteSmoke'
 ]
 
 
@@ -34,16 +58,17 @@ def filter_low_thresh(boxes, scores, classes, category_index, thresh, box_to_dis
     for i in range(boxes.shape[0]):
         if scores[i] > thresh:
             box = tuple(boxes[i].tolist())  # numpy -> list -> tuple
-            # if classes[i] in category_index.keys():
-            #     class_name = category_index[classes[i]]
-            # else:
-            #     class_name = 'N/A'
+            if classes[i] in category_index.keys():
+                class_name = category_index[classes[i]]
+            else:
+                class_name = 'N/A'
             # display_str = str(class_name)
-            display_str = str(classes[i])
-            display_str = '{}: {}%'.format(display_str, int(100 * scores[i]))
+            display_str = "{}:{}".format(classes[i], class_name[:3].upper())
+            # display_str = '{}: {}%'.format(display_str, int(100 * scores[i]))
             box_to_display_str_map[box].append(display_str)
             box_to_color_map[box] = STANDARD_COLORS[
                 classes[i] % len(STANDARD_COLORS)]
+            # box_to_color_map[box] = "Red"
         else:
             break  # 网络输出概率已经排序过，当遇到一个不满足后面的肯定不满足
 
@@ -51,7 +76,7 @@ def filter_low_thresh(boxes, scores, classes, category_index, thresh, box_to_dis
 def draw_text(draw, box_to_display_str_map, box, left, right, top, bottom, color):
     try:
         # font = ImageFont.truetype('arial.ttf', 24)
-        font = ImageFont.truetype('arial.ttf', 14)
+        font = ImageFont.truetype('arial.ttf', 12)
     except IOError:
         font = ImageFont.load_default()
 
@@ -70,16 +95,17 @@ def draw_text(draw, box_to_display_str_map, box, left, right, top, bottom, color
     for display_str in box_to_display_str_map[box][::-1]:
         text_width, text_height = font.getsize(display_str)
         margin = np.ceil(0.05 * text_height)
-        draw.rectangle([(left, text_bottom - text_height - 2 * margin),
-                        (left + text_width, text_bottom)], fill=color)
-        draw.text((left + margin, text_bottom - text_height - margin),
-                  display_str,
-                  fill='black',
-                  font=font)
+        # draw.rectangle([(left, text_bottom - text_height - 2 * margin),
+        #                 (left + text_width, text_bottom)], fill=color)
+        # draw.text((left + margin, text_bottom - text_height - margin),
+        #           display_str,
+        #           fill='black',
+        #           font=font)
+
         text_bottom -= text_height - 2 * margin
 
 
-def draw_box(image, boxes, classes, scores, category_index, thresh=0.5, line_thickness=3):
+def draw_box(image, boxes, classes, scores, category_index, thresh=0.5, line_thickness=2):
     box_to_display_str_map = collections.defaultdict(list)
     box_to_color_map = collections.defaultdict(str)
 
@@ -95,6 +121,7 @@ def draw_box(image, boxes, classes, scores, category_index, thresh=0.5, line_thi
         draw.line([(left, top), (left, bottom), (right, bottom),
                    (right, top), (left, top)], width=line_thickness, fill=color)
         draw_text(draw, box_to_display_str_map, box, left, right, top, bottom, color)
+
 
 def draw_rpn_box(image, boxes, line_thickness=3):
     box_to_display_str_map = collections.defaultdict(list)

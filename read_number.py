@@ -203,7 +203,7 @@ def sqrt_area():
     boxes = torch.tensor([[0, 0, 16, 16],
                           [0, 0, 32, 32],
                           [0, 0, 64, 64],
-                          [0, 0, 96, 96]], dtype=torch.float)
+                          [0, 0, 128, 128]], dtype=torch.float)
     area = box_area(boxes)
 
     return torch.sqrt(area.sum() / len(boxes))
@@ -223,21 +223,9 @@ def tri_dist(boxes1, boxes2):
     y_center2 = y_center2.view(1, -1)
     # r2 = r2.view(1, -1)
 
-    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
-    # a = torch.pow(r1, 2) + torch.pow(r2, 2) - torch.pow(dist, 2)
-    # b = 2.0 * r1 * r2
-    #
-    # cond = torch.lt(dist, r1 + r2)
-    # cond2 = (torch.lt(dist, r1 + r2)) & (torch.lt(r1, dist + r2)) & (torch.lt(r2, dist + r1))
-    #
-    # dist1 = torch.exp(- torch.abs(r1 - r2)) + 1  # 包含
-    # dist2 = a / (b + 1e-7)  # 相交
-    # dist3 = torch.exp(- dist / sqrt_area()) - 2  # 相离
-    #
-    # distance = torch.where(cond2, dist2, dist1)
-    # t_distance = torch.where(cond, distance, dist3)
+    # dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+    dist = torch.max(torch.abs(x_center1 - x_center2), torch.abs(y_center1 - y_center2))
 
-    # t_distance = t_distance.clamp(min=0)
     distance = dist / sqrt_area()
     distance = 1 - distance
     # distance = distance.clamp(min=0)
@@ -251,7 +239,7 @@ def deviation(is_iou=True, is_large=True):
     boxes = torch.tensor([[0, 0, 16, 16],
                           [0, 0, 32, 32],
                           [0, 0, 64, 64],
-                          [0, 0, 96, 96]], dtype=torch.float)
+                          [0, 0, 128, 128]], dtype=torch.float)
     dists = []
     for i in range(0, len(boxes)):
         boxA = boxes[i]
@@ -263,10 +251,12 @@ def deviation(is_iou=True, is_large=True):
                 boxB.append(box)
         else:
             for j in range(-15, 16):
-                if j >= 0:
-                    box = [3 * j, 3 * j, 3 * j + w / 2, 3 * j + h / 2]
-                else:
-                    box = [2 * j + w / 2, 2 * j + h / 2, 2 * j + w, 2 * j + h]
+                box = [w / 2 + 3 * j - w / 4, h / 2 + 3 * j - h / 4, w / 2 + 3 * j + w / 4, h / 2 + 3 * j + h / 4]
+                # if j >= 0:
+                #     # box = []
+                #     box = [3 * j, 3 * j, 3 * j + w / 2, 3 * j + h / 2]
+                # else:
+                #     box = [3 * j + w / 2, 3 * j + h / 2, 3 * j + w, 3 * j + h]
                 boxB.append(box)
         boxB = torch.tensor(boxB, dtype=torch.float)
         boxA = boxA.view(-1, 4)
@@ -285,7 +275,7 @@ def deviation_hor(is_iou=True, is_large=True):
     boxes = torch.tensor([[0, 0, 16, 16],
                           [0, 0, 32, 32],
                           [0, 0, 64, 64],
-                          [0, 0, 96, 96]], dtype=torch.float)
+                          [0, 0, 128, 128]], dtype=torch.float)
     dists = []
     for i in range(0, len(boxes)):
         boxA = boxes[i]
@@ -341,12 +331,12 @@ def plot_curve(values, y_label, name, is_iou=True):
         # 设置横轴精准刻度
         plt.xticks(np.arange(-50, 60, step=10))
         # 设置纵轴精准刻度
-        if is_iou:
-            plt.yticks(np.arange(0, 1.2, step=0.2))
+        # if is_iou:
+        plt.yticks(np.arange(0, 1.2, step=0.2))
         # else:
 
         plt.title('{}-Deviation Curve'.format(y_label))
-        plt.savefig('./results/deviation_{}.jpg'.format(name))
+        plt.savefig('./results1.0/deviation_{}.jpg'.format(name))
         plt.show()
         plt.close()
     except Exception as e:
@@ -354,21 +344,86 @@ def plot_curve(values, y_label, name, is_iou=True):
 
 
 
+def read_instance():
+    # read class_indict 解析json文件
+    json_file = './pascal_voc_classes.json'
+    assert os.path.exists(json_file), "{} file not exist.".format(json_file)
+    json_file = open(json_file, 'r')
+    class_dict = json.load(json_file)  # class_dict存储所有类别名称和index：index：value
+    json_file.close()
+    category_index = {v: k for k, v in class_dict.items()}
+
+    xml_root = "./Pest24/Annotations"
+    instance_dict = {}
+
+    temp = 0
+    for file in os.listdir(xml_root):
+        if not file.endswith('xml'):
+            continue
+        xml_path = os.path.join(xml_root, file)
+        with open(xml_path, encoding='utf-8') as fid:
+            xml_str = fid.read()
+        xml = etree.fromstring(xml_str.encode('utf-8'))
+        data = parse_xml_to_dict(xml)["annotation"]  # 读取的标注数据
+
+        assert "object" in data, "{} lack of object information.".format(xml_path)
+        for obj in data["object"]:
+            temp += 1
+            class_name, area, h_w = read_box(obj)
+            # h_w = read_h_w(obj)
+            class_name = category_index[class_name]
+            # class_name = class_name[0:2].upper()
+            if class_name in instance_dict.keys():
+                instance_dict[class_name] = instance_dict[class_name] + 1
+            else:
+                # instance_dict.append({value: '1'})
+                instance_dict[class_name] = 1
+
+    instance_dict = {'Bollworm': 28014, 'Meadow borer': 16516, 'Gryllotalpa orientalis': 6528, 'Little Gecko': 4279, 'Agriotes fuscicollis Miwa': 6484, 'Nematode trench': 167, 'Athetis lepigone': 30339, 'Scotogramma trifolii Rottemberg': 4679, 'Armyworm': 8880, 'Spodoptera cabbage': 2304, 'Anomala corpulenta': 53347, 'Spodoptera exigua': 7263, 'Plutella xylostella': 953, 'Holotrichia parallela': 11675, 'Rice planthopper': 1511, 'Yellow tiger': 1686, 'Land tiger': 475, 'Eight-character tiger': 168, 'Holotrichia oblita': 108, 'Stem borer': 1804, 'Chilo suppressalis': 1285, 'Rice Leaf Roller': 1240, 'Spodoptera litura': 1951, 'Melahotus': 768}
+
+    names = []
+    nums = []
+    for k, v in instance_dict.items():
+        names.append(k)
+        nums.append(v)
+
+    plt.barh(names, nums)
+    plt.subplots_adjust(left=0.25)
+    plt.savefig('./results/instances.jpg')
+    plt.show()
+    print(instance_dict)
+
+
+
+
 if __name__ == '__main__':
     # avg_area()
+    # read_instance()
+    # instance_dict = {'Bollworm': 28014, 'Meadow borer': 16516,
+    #                  'Gryllotalpa orientalis': 6528, 'Little Gecko': 4279,
+    #                  'Agriotes fuscicollis Miwa': 6484, 'Nematode trench': 167, 'Athetis lepigone': 30339,
+    #                  'Scotogramma trifolii Rottemberg': 4679, 'Armyworm': 8880, 'Spodoptera cabbage': 2304,
+    #                  'Anomala corpulenta': 53347, 'Spodoptera exigua': 7263, 'Plutella xylostella': 953,
+    #                  'Holotrichia parallela': 11675, 'Rice planthopper': 1511,
+    #                  'Yellow tiger': 1686, 'Land tiger': 475,
+    #                  'Eight-character tiger': 168, 'Holotrichia oblita': 108, 'Stem borer': 1804,
+    #                  'Chilo suppressalis': 1285, 'Rice Leaf Roller': 1240,
+    #                  'Spodoptera litura': 1951, 'Melahotus': 768}
+
+
     iou_l = deviation(is_iou=True, is_large=True)
     plot_curve(iou_l, 'IoU', 'iou_l')
     dist_l = deviation(is_iou=False, is_large=True)
-    plot_curve(dist_l, 'TriD', 'trid_l', is_iou=False)
+    plot_curve(dist_l, 'TSD', 'TSD_l', is_iou=False)
     iou_s = deviation(is_iou=True, is_large=False)
     plot_curve(iou_s, 'IoU', 'iou_s')
     dist_s = deviation(is_iou=False, is_large=False)
-    plot_curve(dist_s, 'TriD', 'trid_s', is_iou=False)
+    plot_curve(dist_s, 'TSD', 'TSD_s', is_iou=False)
 
     iou_h = deviation_hor(is_iou=True, is_large=True)
     plot_curve(iou_h, 'IoU', 'iou_hor_l')
     dist_h = deviation_hor(is_iou=False, is_large=True)
-    plot_curve(dist_h, 'TriD', 'trid_hor_l', is_iou=False)
+    plot_curve(dist_h, 'TSD', 'TSD_hor_l', is_iou=False)
 
 
 

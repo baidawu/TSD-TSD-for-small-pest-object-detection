@@ -358,35 +358,27 @@ class RegionProposalNetwork(torch.nn.Module):
         # use during training
         # 计算anchors与真实bbox的iou
         # self.box_similarity = box_ops.box_iou
-        self.box_similarity = box_ops.box_dist
-        # self.box_similarity = box_ops.box_iou_post
-
-        self.proposal_matcher = det_utils.Matcher(
-            fg_iou_thresh,  # 当iou大于fg_iou_thresh(0.7)时视为正样本
-            bg_iou_thresh,  # 当iou小于bg_iou_thresh(0.3)时视为负样本
-            allow_low_quality_matches=True
-        )
-
         # self.proposal_matcher = det_utils.Matcher(
-        #     high_threshold=0.9,  # default: 0.5
-        #     low_threshold=0.2,  # default: 0.5
-        #     allow_low_quality_matches=True)
+        #     fg_iou_thresh,  # 当iou大于fg_iou_thresh(0.7)时视为正样本
+        #     bg_iou_thresh,  # 当iou小于bg_iou_thresh(0.3)时视为负样本
+        #     allow_low_quality_matches=True
+        # )
 
+        # self.box_similarity = box_ops.box_dotd
         # self.proposal_matcher = det_utils.Matcher(
-        #     high_threshold=0.8,  # default: 0.5
-        #     low_threshold=-0.2,  # default: 0.5
-        #     allow_low_quality_matches=True)
-
-        # self.proposal_matcher = det_utils.Matcher(
-        #     high_threshold=1.5,  # default: 0.5
-        #     low_threshold=0.5,  # default: 0.5
-        #     allow_low_quality_matches=True)
-
-
-        # self.proposal_matcher_center_dist = det_utils.Matcher_center_dist(
         #     high_threshold=0.7,  # default: 0.5
-        #     low_threshold=0.2,  # default: 0.5
-        #     allow_low_quality_matches=False)
+        #     low_threshold=0.3,  # default: 0.5
+        #     allow_low_quality_matches=True)
+
+
+
+        self.box_similarity = box_ops.box_dist
+        self.proposal_matcher = det_utils.Matcher(
+            high_threshold=0.9,  # default: 0.5
+            low_threshold=0.3,  # default: 0.5
+            allow_low_quality_matches=True)
+
+
 
         self.fg_bg_sampler = det_utils.BalancedPositiveNegativeSampler(
             batch_size_per_image, positive_fraction  # 256, 0.5
@@ -434,6 +426,7 @@ class RegionProposalNetwork(torch.nn.Module):
                 # 计算anchors与真实bbox的iou信息
                 # set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
                 # match_quality_matrix = box_ops.box_iou(gt_boxes, anchors_per_image)
+                # match_quality_matrix = box_ops.box_dotd(gt_boxes, anchors_per_image)
                 match_quality_matrix = box_ops.box_dist(gt_boxes, anchors_per_image)
                 # match_quality_matrix = box_ops.box_iou_post(gt_boxes, anchors_per_image)
                 # 计算每个anchors与gt匹配iou最大的索引（如果iou<0.3索引置为-1，0.3<iou<0.7索引为-2）
@@ -565,9 +558,10 @@ class RegionProposalNetwork(torch.nn.Module):
 
             # non-maximum suppression, independently done per level
             # 前处理：采用nms
-            keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
+            # keep = box_ops.batched_nms(boxes, scores, lvl, self.nms_thresh)
             # keep = box_ops.batched_nms_post(boxes, scores, lvl, iou_threshold=0.9)
-
+            keep = box_ops.batched_nms_post(boxes, scores, lvl, iou_threshold=0.7)
+            #
             # keep only topk scoring predictions
             keep = keep[: self.post_nms_top_n()]
             boxes, scores = boxes[keep], scores[keep]

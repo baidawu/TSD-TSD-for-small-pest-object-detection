@@ -8,6 +8,7 @@ from torch import nn, Tensor
 import torch.nn.functional as F
 from torchvision.ops import MultiScaleRoIAlign
 import draw_box_utils
+import cv2
 
 from .roi_head import RoIHeads
 from .transform import GeneralizedRCNNTransform
@@ -90,8 +91,8 @@ class FasterRCNNBase(nn.Module):
 
         # loader = transforms.Compose([transforms.ToTensor()])
         # unloader = transforms.ToPILImage()
-
         # original_image = copy.deepcopy(images)
+
         # print("original image shape:{}".format(original_image.shape))
         images, targets = self.transform(images, targets)  # 对图像进行预处理
 
@@ -114,23 +115,25 @@ class FasterRCNNBase(nn.Module):
         # 将特征层以及标注target信息传入rpn中
         # proposals: List[Tensor], Tensor_shape: [num_proposals, 4],
         # 每个proposals是绝对坐标，且为(x1, y1, x2, y2)格式
-
         proposals, proposal_losses = self.rpn(images, features, targets)
 
-        # if len(proposals[0]) > 0:
+        # boxes = proposals[0].to("cpu").numpy()
+        # if len(boxes) > 0:
         #     for img in original_image:
         #         image = img.cpu().clone()
         #         image = image.squeeze(0)
         #         image = unloader(image)
-        #         # image.save("./results/rpn-image.jpg")
-        #         draw_box_utils.draw_rpn_box(image, proposals[0])
+        #
+        #         draw = ImageDraw.Draw(image)
+        #         for box in boxes:
+        #             xmin, ymin, xmax, ymax = box
+        #             (left, right, top, bottom) = (xmin * 1, xmax * 1,
+        #                                           ymin * 1, ymax * 1)
+        #             draw.line([(left, top), (left, bottom), (right, bottom),
+        #                        (right, top), (left, top)], width=2, fill=(255, 0, 0))
         #         plt.imshow(image)
         #         plt.show()
-        #         image.save("./results/rpn_images.jpg")
-
-        # draw_box_utils.draw_rpn_box(images, proposals)
-
-        # print("proposals:{}".format(proposals))
+        #         image.save("./results/annotation/rpn_image.jpg")
 
         # 将rpn生成的数据以及标注target信息传入fast rcnn后半部分
         detections, detector_losses = self.roi_heads(features, proposals, images.image_sizes, targets)

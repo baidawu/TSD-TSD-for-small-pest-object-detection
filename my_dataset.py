@@ -15,7 +15,7 @@ class VOCDataSet(Dataset):
     def __init__(self, voc_root, year="2012", transforms=None, txt_name: str = "train.txt"):
         assert year in ["2007", "2012"], "year must be in ['2007', '2012']"
         # self.root = os.path.join(voc_root, "VOCdevkit", f"VOC{year}")
-        self.root = os.path.join(voc_root,"Pest24")
+        self.root = os.path.join(voc_root, "Pest24")
         self.img_root = os.path.join(self.root, "JPEGImages")  # 图片路径
         self.annotations_root = os.path.join(self.root, "Annotations") # XML文件路径
 

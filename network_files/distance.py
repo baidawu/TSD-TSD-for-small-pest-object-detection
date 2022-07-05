@@ -52,8 +52,9 @@ def tri_dist(boxes1, boxes2):
     y_center2 = y_center2.view(1, -1)
     # r2 = r2.view(1, -1)
 
-    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
-    # print("dist:{} {}".format(dist, dist.size()))
+    # dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+
+    dist = torch.max(torch.abs(x_center1 - x_center2), torch.abs(y_center1 - y_center2))
 
     # distance = dist / (r1 + r2 + 1e-7)
     distance = dist / 35.63
@@ -64,63 +65,6 @@ def tri_dist(boxes1, boxes2):
     # distance越大越好（类似iou,越大越好）
     return distance
 
-def t_dist(boxes1, boxes2):
-
-    x_center1 = boxes1[:, None, 0] + (boxes1[:, None, 2] - boxes1[:, None, 0]) / 2.
-    y_center1 = boxes1[:, None, 1] + (boxes1[:, None, 3] - boxes1[:, None, 1]) / 2.
-    r1 = torch.sqrt((boxes1[:, None, 2] - x_center1) ** 2 + (boxes1[:, None, 3] - y_center1) ** 2)
-
-    x_center2 = boxes2[:, None, 0] + (boxes2[:, None, 2] - boxes2[:, None, 0]) / 2.
-    y_center2 = boxes2[:, None, 1] + (boxes2[:, None, 3] - boxes2[:, None, 1]) / 2.
-    r2 = torch.sqrt((boxes2[:, None, 2] - x_center2) ** 2 + (boxes2[:, None, 3] - y_center2) ** 2)
-
-    x_center2 = x_center2.view(1, -1)
-    y_center2 = y_center2.view(1, -1)
-    r2 = r2.view(1, -1)
-
-    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
-    a = torch.pow(r1, 2) + torch.pow(r2, 2) - torch.pow(dist, 2)
-    b = 2.0 * r1 * r2
-
-    cond = torch.lt(dist, r1 + r2)
-    cond2 = (torch.lt(dist, r1 + r2)) & (torch.lt(r1, dist + r2)) & (torch.lt(r2, dist + r1))
-
-    dist1 = torch.exp(- torch.abs(r1 - r2)) + 1  # 包含
-    dist2 = a / (b + 1e-7)  # 相交
-    dist3 = torch.exp(- dist / 35.63) - 2  # 相离
-
-    distance = torch.where(cond2, dist2, dist1)
-    t_distance = torch.where(cond, distance, dist3)
-
-    # t_distance = t_distance.clamp(min=0)
-    # distance = dist / torch.sqrt(avg_area())
-    # distance = 1 - distance
-
-    # distance越大越好（类似iou,越大越好）
-    return t_distance
-
-
-def bbox_transform(deltas, weights):
-    wx, wy, ww, wh = weights
-    dx = deltas[:, 0::4] / wx
-    dy = deltas[:, 1::4] / wy
-    dw = deltas[:, 2::4] / ww
-    dh = deltas[:, 3::4] / wh
-
-    dw = torch.clamp(dw, max=np.log(1000. / 16.))
-    dh = torch.clamp(dh, max=np.log(1000. / 16.))
-
-    pred_ctr_x = dx
-    pred_ctr_y = dy
-    pred_w = torch.exp(dw)
-    pred_h = torch.exp(dh)
-
-    x1 = pred_ctr_x - 0.5 * pred_w
-    y1 = pred_ctr_y - 0.5 * pred_h
-    x2 = pred_ctr_x + 0.5 * pred_w
-    y2 = pred_ctr_y + 0.5 * pred_h
-
-    return x1.view(-1), y1.view(-1), x2.view(-1), y2.view(-1)
 
 def tri_loss(output, target, transform_weights=None):
 
@@ -156,7 +100,8 @@ def tri_loss(output, target, transform_weights=None):
 
     r1 = torch.sqrt((x2 - x_p) ** 2 + (y2 - y_p) ** 2)
     r2 = torch.sqrt((x2g - x_g) ** 2 + (y2g - y_g) ** 2)
-    dist = torch.sqrt((x_p - x_g) ** 2 + (y_p - y_g) ** 2)
+    # dist = torch.sqrt((x_p - x_g) ** 2 + (y_p - y_g) ** 2)
+    dist = torch.max(torch.abs(x_p - x_g), torch.abs(y_p - y_g))
 
     cond = torch.lt(dist, r1 + r2)
     cond2 = (torch.lt(dist, r1 + r2)) & (torch.lt(r1, dist + r2)) & (torch.lt(r2, dist + r1))
@@ -165,33 +110,109 @@ def tri_loss(output, target, transform_weights=None):
     a = torch.pow(r1, 2) + torch.pow(r2, 2) - torch.pow(dist, 2)
     b = 2.0 * r1 * r2
 
-    # loss1 = 1 - (iou + torch.exp(- torch.abs(r1 - r2)) + 1)  # 包含
-    # # loss1 = 0.5 * torch.abs(r1 - r2) ** 2
-    # loss2 = 1 - (iou + a / (b + 1e-7))  # 相交
-    # loss3 = 1 - (iou + torch.exp(- dist / (r1 + r2 + 1e-7)) - 2)  # 相离
-    # # loss3 = dist / (r1 + r2 + 1e-7)
+
 
     loss1 = 1 - torch.exp(- torch.abs(r1 - r2))   # 包含
     loss2 = 1 - a / (b + 1e-7)  # 相交
     # loss3 = 2 - iou + torch.exp(- dist / (r1 + r2 + 1e-7))  # 相离
-    loss3 = 2 - torch.exp(- dist / 35.63)  # 相离
+    # loss3 = 2 - torch.exp(- dist / 35.63)  # 相离
+    loss3 = dist
 
     loss = torch.where(cond2, loss2, loss1)
     t_loss = torch.where(cond, loss, loss3)
 
-
     return t_loss.sum()
 
 
+def dotd(boxes1, boxes2):
+
+    x_center1 = boxes1[:, None, 0] + (boxes1[:, None, 2] - boxes1[:, None, 0]) / 2.
+    y_center1 = boxes1[:, None, 1] + (boxes1[:, None, 3] - boxes1[:, None, 1]) / 2.
+    # r1 = torch.sqrt((boxes1[:, None, 2] - x_center1) ** 2 + (boxes1[:, None, 3] - y_center1) ** 2)
+
+    x_center2 = boxes2[:, None, 0] + (boxes2[:, None, 2] - boxes2[:, None, 0]) / 2.
+    y_center2 = boxes2[:, None, 1] + (boxes2[:, None, 3] - boxes2[:, None, 1]) / 2.
+    # r2 = torch.sqrt((boxes2[:, None, 2] - x_center2) ** 2 + (boxes2[:, None, 3] - y_center2) ** 2)
+
+    x_center2 = x_center2.view(1, -1)
+    y_center2 = y_center2.view(1, -1)
+    # r2 = r2.view(1, -1)
+
+    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+
+    # dist = torch.max(torch.abs(x_center1 - x_center2), torch.abs(y_center1 - y_center2))
+
+    # distance = dist / (r1 + r2 + 1e-7)
+    # distance = dist / 35.63
+    # distance = 1 - distance
+    distance = torch.exp(- dist / 35.63)
+
+    # distance = torch.exp(- dist / 35.63)
+
+    # distance越大越好（类似iou,越大越好）
+    return distance
 
 
 
 
 
 
+def bbox_transform(deltas, weights):
+    wx, wy, ww, wh = weights
+    dx = deltas[:, 0::4] / wx
+    dy = deltas[:, 1::4] / wy
+    dw = deltas[:, 2::4] / ww
+    dh = deltas[:, 3::4] / wh
 
+    dw = torch.clamp(dw, max=np.log(1000. / 16.))
+    dh = torch.clamp(dh, max=np.log(1000. / 16.))
 
+    pred_ctr_x = dx
+    pred_ctr_y = dy
+    pred_w = torch.exp(dw)
+    pred_h = torch.exp(dh)
 
+    x1 = pred_ctr_x - 0.5 * pred_w
+    y1 = pred_ctr_y - 0.5 * pred_h
+    x2 = pred_ctr_x + 0.5 * pred_w
+    y2 = pred_ctr_y + 0.5 * pred_h
+
+    return x1.view(-1), y1.view(-1), x2.view(-1), y2.view(-1)
+
+def t_dist(boxes1, boxes2):
+
+    x_center1 = boxes1[:, None, 0] + (boxes1[:, None, 2] - boxes1[:, None, 0]) / 2.
+    y_center1 = boxes1[:, None, 1] + (boxes1[:, None, 3] - boxes1[:, None, 1]) / 2.
+    r1 = torch.sqrt((boxes1[:, None, 2] - x_center1) ** 2 + (boxes1[:, None, 3] - y_center1) ** 2)
+
+    x_center2 = boxes2[:, None, 0] + (boxes2[:, None, 2] - boxes2[:, None, 0]) / 2.
+    y_center2 = boxes2[:, None, 1] + (boxes2[:, None, 3] - boxes2[:, None, 1]) / 2.
+    r2 = torch.sqrt((boxes2[:, None, 2] - x_center2) ** 2 + (boxes2[:, None, 3] - y_center2) ** 2)
+
+    x_center2 = x_center2.view(1, -1)
+    y_center2 = y_center2.view(1, -1)
+    r2 = r2.view(1, -1)
+
+    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+    a = torch.pow(r1, 2) + torch.pow(r2, 2) - torch.pow(dist, 2)
+    b = 2.0 * r1 * r2
+
+    cond = torch.lt(dist, r1 + r2)
+    cond2 = (torch.lt(dist, r1 + r2)) & (torch.lt(r1, dist + r2)) & (torch.lt(r2, dist + r1))
+
+    dist1 = torch.exp(- torch.abs(r1 - r2)) + 1  # 包含
+    dist2 = a / (b + 1e-7)  # 相交
+    dist3 = torch.exp(- dist / 35.63) - 2  # 相离
+
+    distance = torch.where(cond2, dist2, dist1)
+    t_distance = torch.where(cond, distance, dist3)
+
+    # t_distance = t_distance.clamp(min=0)
+    # distance = dist / torch.sqrt(avg_area())
+    # distance = 1 - distance
+
+    # distance越大越好（类似iou,越大越好）
+    return t_distance
 
 
 

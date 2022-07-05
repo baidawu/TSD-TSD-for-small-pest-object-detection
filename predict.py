@@ -52,7 +52,7 @@ def main():
     model = create_model(num_classes=25) # 24类+背景
 
     # load train weights
-    train_weights = "./save_weights/resNetFpn-model-20.pth"
+    train_weights = "./save_weights_ours/resNetFpn-model-12-20220331-084739.pth"
     #train_weights = "./save_weights/"
     assert os.path.exists(train_weights), "{} file dose not exist.".format(train_weights)
     state_dict = torch.load(train_weights, map_location=device)

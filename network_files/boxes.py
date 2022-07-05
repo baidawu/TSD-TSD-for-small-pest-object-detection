@@ -18,45 +18,6 @@ from cpython_nms import diounms
 
 def nms_post(boxes, scores, iou_threshold):
     # type: (Tensor, Tensor, float) -> Tensor
-    """
-    Performs non-maximum suppression (NMS) on the boxes according
-    to their intersection-over-union (IoU).
-
-    NMS iteratively removes lower scoring boxes which have an
-    IoU greater than iou_threshold with another (higher scoring)
-    box.
-
-    Parameters
-    ----------
-    boxes : Tensor[N, 4])
-        boxes to perform NMS on. They
-        are expected to be in (x1, y1, x2, y2) format
-    scores : Tensor[N]
-        scores for each one of the boxes
-    iou_threshold : float
-        discards all overlapping
-        boxes with IoU < iou_threshold
-
-    Returns
-    -------
-    keep : Tensor
-        int64 tensor with the indices
-        of the elements that have been kept
-        by NMS, sorted in decreasing order of scores
-    """
-    # return torch.ops.torchvision.nms(boxes, scores, iou_threshold)
-    # keep = torch.ops.torchvision.nms(boxes, scores, iou_threshold)
-    # print(boxes, scores)
-    # print()
-    # boxes = boxes.to("cpu").numpy()
-    # scores = scores.to("cpu").numpy()
-    # keep = py_cpu_softnms(boxes, scores, iou_threshold)
-    # # print(keep)
-    # keep = torch.LongTensor(keep).to("cuda")
-    # print(keep, keep.type())
-
-    # return py_cpu_softnms(boxes, scores, iou_threshold)
-    # return soft_nms(boxes, scores, iou_threshold)
 
     cuda = 1 if torch.cuda.is_available() else 0
     if cuda:
@@ -64,7 +25,8 @@ def nms_post(boxes, scores, iou_threshold):
         scores = scores.cuda()
     # keep = soft_nms.soft_nms_simple(boxes, scores, iou_threshold, cuda=cuda)
     # keep = soft_nms.soft_nms_pytorch(boxes, scores, iou_threshold, cuda=cuda)
-    keep = soft_nms.trid_nms(boxes, scores, iou_threshold)
+    # keep = soft_nms.trid_nms(boxes, scores, iou_threshold)
+    keep = soft_nms.dotd_nms(boxes, scores, iou_threshold)
 
     return keep
 
@@ -102,33 +64,7 @@ def nms(boxes, scores, iou_threshold):
 def batched_nms_post(boxes, scores, idxs, iou_threshold):
     # type: (Tensor, Tensor, Tensor, float) -> Tensor
 
-    """
-    Performs non-maximum suppression in a batched fashion.
 
-    Each index value correspond to a category, and NMS
-    will not be applied between elements of different categories.
-
-    后处理：roi层使用soft_nms算法
-    Parameters
-    ----------
-    boxes : Tensor[N, 4]
-        boxes where NMS will be performed. They
-        are expected to be in (x1, y1, x2, y2) format
-    scores : Tensor[N]
-        scores for each one of the boxes
-    idxs : Tensor[N] labels
-        indices of the categories for each one of the boxes.
-    iou_threshold : float
-        discards all overlapping boxes
-        with IoU < iou_threshold
-
-    Returns
-    -------
-    keep : Tensor
-        int64 tensor with the indices of
-        the elements that have been kept by NMS, sorted
-        in decreasing order of scores
-    """
     if boxes.numel() == 0:
         return torch.empty((0,), dtype=torch.int64, device=boxes.device)
 
@@ -326,3 +262,7 @@ def box_dist(boxes1, boxes2):
 
     return distance.tri_dist(boxes1, boxes2)
     # return distance.t_dist(boxes1, boxes2)
+
+def box_dotd(boxes1, boxes2):
+
+    return distance.dotd(boxes1, boxes2)

@@ -41,7 +41,7 @@ def main(parser_data):
     print("Using {} device training.".format(device.type))
 
     # 用来保存coco_info的文件
-    results_file = "./results/results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    results_file = "./results1.0/results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     data_transform = {
         "train": transforms.Compose([transforms.ToTensor(),  # 将image转换为tensor
@@ -187,7 +187,7 @@ def main(parser_data):
             'optimizer': optimizer.state_dict(),
             'lr_scheduler': lr_scheduler.state_dict(),
             'epoch': epoch}
-        torch.save(save_files, "./save_weights/resNetFpn-model-{}.pth".format(epoch))
+        torch.save(save_files, "./save_weights_dotd/resNetFpn-model-{}.pth".format(epoch))
 
     # plot loss and lr curve
     if len(train_loss) != 0 and len(learning_rate) != 0:
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     # 检测目标类别数(不包含背景) 24类害虫，但index到了37
     parser.add_argument('--num-classes', default=24, type=int, help='num_classes')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./save_weights', help='path where to save')
+    parser.add_argument('--output-dir', default='./save_weights_dotd', help='path where to save')
     # 若需要接着上次训练，则指定上次训练保存权重文件地址
     parser.add_argument('--resume', default='', type=str, help='resume from checkpoint')
     # 指定接着从哪个epoch数开始训练
@@ -236,5 +236,6 @@ if __name__ == "__main__":
     # 检查保存权重文件夹是否存在，不存在则创建
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
-
+    # print(torch.__version__)
+    # print(torch.cuda.is_available())
     main(args)

@@ -15,16 +15,19 @@ from train_utils import train_eval_utils as utils
 def create_model(num_classes):
     # https://download.pytorch.org/models/vgg16-397923af.pth
     # 如果使用vgg16的话就下载对应预训练权重并取消下面注释，接着把mobilenetv2模型对应的两行代码注释掉
-    # vgg_feature = vgg(model_name="vgg16", weights_path="./backbone/vgg16.pth").features
-    # backbone = torch.nn.Sequential(*list(vgg_feature._modules.values())[:-1])  # 删除features中最后一个Maxpool层
-    # backbone.out_channels = 512
+    vgg_feature = vgg(model_name="vgg16", weights_path="./backbone/vgg16.pth").features
+    backbone = torch.nn.Sequential(*list(vgg_feature._modules.values())[:-1])  # 删除features中最后一个Maxpool层
+    backbone.out_channels = 512
 
     # https://download.pytorch.org/models/mobilenet_v2-b0353104.pth
-    backbone = MobileNetV2(weights_path="./backbone/mobilenet_v2.pth").features
-    backbone.out_channels = 1280  # 设置对应backbone输出特征矩阵的channels
+    # backbone = MobileNetV2(weights_path="./backbone/mobilenet_v2.pth").features
+    # backbone.out_channels = 1280  # 设置对应backbone输出特征矩阵的channels
 
-    anchor_generator = AnchorsGenerator(sizes=((32, 64, 128, 256, 512),),
-                                        aspect_ratios=((0.5, 1.0, 2.0),))
+    anchor_sizes = ((8,), (16,), (32,), (64,), (128,))
+    aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
+    anchor_generator = AnchorsGenerator(
+        anchor_sizes, aspect_ratios
+    )
 
     roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'],  # 在哪些特征层上进行roi pooling
                                                     output_size=[7, 7],   # roi_pooling输出特征矩阵尺寸
@@ -43,7 +46,7 @@ def main():
     print("Using {} device training.".format(device.type))
 
     # 用来保存coco_info的文件
-    results_file = "results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    results_file = "./results1.0/results{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     # 检查保存权重文件夹是否存在，不存在则创建
     if not os.path.exists("save_weights"):
@@ -60,8 +63,8 @@ def main():
     batch_size = 8
 
     # check voc root
-    if os.path.exists(os.path.join(VOC_root, "VOCdevkit")) is False:
-        raise FileNotFoundError("VOCdevkit dose not in path:'{}'.".format(VOC_root))
+    # if os.path.exists(os.path.join(VOC_root, "VOCdevkit")) is False:
+    #     raise FileNotFoundError("VOCdevkit dose not in path:'{}'.".format(VOC_root))
 
     # load train data set
     # VOCdevkit -> VOC2012 -> ImageSets -> Main -> train.txt
@@ -107,7 +110,7 @@ def main():
                                                   collate_fn=val_dataset.collate_fn)
 
     # create model num_classes equal background + 20 classes
-    model = create_model(num_classes=21)
+    model = create_model(num_classes=25)
     # print(model)
 
     model.to(device)
@@ -125,19 +128,23 @@ def main():
 
     # define optimizer
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr=0.005,
-                                momentum=0.9, weight_decay=0.0005)
+    optimizer = torch.optim.SGD(params, lr=0.01,
+                                momentum=0.9, weight_decay=0.0001)
 
-    init_epochs = 5
+    init_epochs = 1
+    exp_txt = "./experiment/experiments{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     for epoch in range(init_epochs):
         # train for one epoch, printing every 10 iterations
-        mean_loss, lr = utils.train_one_epoch(model, optimizer, train_data_loader,
+        # def train_one_epoch(model, optimizer, data_loader, exp_txt, device, epoch,
+        #                     print_freq=50, warmup=False):
+        mean_loss, cls_loss, box_reg_loss, objectness_loss, rpn_box_reg_loss, lr = utils.train_one_epoch(model,
+                                                optimizer, train_data_loader, exp_txt,
                                               device, epoch, print_freq=50, warmup=True)
         train_loss.append(mean_loss.item())
         learning_rate.append(lr)
 
         # evaluate on the test dataset
-        coco_info = utils.evaluate(model, val_data_loader, device=device)
+        coco_info = utils.evaluate(model, val_data_loader, exp_txt, device=device)
 
         # write into txt
         with open(results_file, "a") as f:
@@ -165,16 +172,17 @@ def main():
 
     # define optimizer
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr=0.005,
-                                momentum=0.9, weight_decay=0.0005)
+    optimizer = torch.optim.SGD(params, lr=0.01,
+                                momentum=0.9, weight_decay=0.0001)
     # learning rate scheduler
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=3,
                                                    gamma=0.33)
-    num_epochs = 20
+    num_epochs = 15
     for epoch in range(init_epochs, num_epochs+init_epochs, 1):
         # train for one epoch, printing every 50 iterations
-        mean_loss, lr = utils.train_one_epoch(model, optimizer, train_data_loader,
+        mean_loss, cls_loss, box_reg_loss, objectness_loss, rpn_box_reg_loss, lr = utils.train_one_epoch(model,
+                                                optimizer, train_data_loader, exp_txt,
                                               device, epoch, print_freq=50, warmup=True)
         train_loss.append(mean_loss.item())
         learning_rate.append(lr)
@@ -183,7 +191,7 @@ def main():
         lr_scheduler.step()
 
         # evaluate on the test dataset
-        coco_info = utils.evaluate(model, val_data_loader, device=device)
+        coco_info = utils.evaluate(model, val_data_loader, exp_txt, device=device)
 
         # write into txt
         with open(results_file, "a") as f:
@@ -202,7 +210,7 @@ def main():
                 'optimizer': optimizer.state_dict(),
                 'lr_scheduler': lr_scheduler.state_dict(),
                 'epoch': epoch}
-            torch.save(save_files, "./save_weights/mobile-model-{}.pth".format(epoch))
+            torch.save(save_files, "./save_weights/vgg-model-{}.pth".format(epoch))
 
     # plot loss and lr curve
     if len(train_loss) != 0 and len(learning_rate) != 0:

@@ -45,7 +45,7 @@ def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     # 将CE损失改为focal loss损失
     # print(class_logits.shape)
     N, num_classes = class_logits.shape
-    fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.25)
+    fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.5)
     # fl = FocalLoss(class_num=num_classes, gamma=3, alpha=0.25)
     # fl = FocalLoss(class_num=num_classes, gamma=2, alpha=0.25, use_alpha=True)
     # # fl = FocalLoss(class_num=num_classes, alpha=0.75,  gamma=0.1, use_alpha=True)  # loss is nan
@@ -190,8 +190,8 @@ class RoIHeads(torch.nn.Module):
             allow_low_quality_matches=False)
 
         # self.proposal_matcher = det_utils.Matcher(
-        #     high_threshold=0.6,  # default: 0.5
-        #     low_threshold=0.1,  # default: 0.5
+        #     high_threshold=0.5,  # default: 0.5
+        #     low_threshold=0.5,  # default: 0.5
         #     allow_low_quality_matches=False)
 
         # tri-dist2:分类计算dist

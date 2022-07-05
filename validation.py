@@ -130,7 +130,8 @@ def main(parser_data):
     print('Using %g dataloader workers' % nw)
 
     # load validation data set
-    val_dataset = VOCDataSet(VOC_root, "2012", data_transform["val"], "val.txt")
+    # val_dataset = VOCDataSet(VOC_root, "2012", data_transform["val"], "val.txt")
+    val_dataset = VOCDataSet(VOC_root, "2012", data_transform["val"], "test.txt")
     val_dataset_loader = torch.utils.data.DataLoader(val_dataset,
                                                      batch_size=1,
                                                      shuffle=False,
@@ -156,6 +157,7 @@ def main(parser_data):
     iou_types = ["bbox"]
     coco_evaluator = CocoEvaluator(coco, iou_types)
     cpu_device = torch.device("cpu")
+    # cpu_device = torch.device("cuda")
 
     model.eval()
     with torch.no_grad():
@@ -200,7 +202,7 @@ def main(parser_data):
 
 
     # 将验证结果保存至txt文件中
-    record_file = "./results/record_mAP{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    record_file = "./results1.0/record_mAP{}.txt".format(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     with open(record_file, "w") as f:
         record_lines = ["results:",
                         print_coco,
@@ -226,7 +228,7 @@ if __name__ == "__main__":
     parser.add_argument('--data-path', default='./', help='dataset root')
 
     # 训练好的权重文件
-    parser.add_argument('--weights', default='./save_weights/resNetFpn-model-20.pth', type=str, help='training weights')
+    parser.add_argument('--weights', default='./save_weights_ours/resNetFpn-model-12-20220331-084739.pth', type=str, help='training weights')
 
     # batch size
     parser.add_argument('--batch_size', default=1, type=int, metavar='N',

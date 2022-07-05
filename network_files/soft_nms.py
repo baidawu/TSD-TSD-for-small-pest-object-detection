@@ -183,7 +183,8 @@ def tri_dist(boxes1, boxes2):
     x_center2 = x_center2.view(1, -1)
     y_center2 = y_center2.view(1, -1)
 
-    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+    # dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+    dist = torch.max(torch.abs(x_center1 - x_center2), torch.abs(y_center1 - y_center2))
 
     distance = dist / 35.63
     distance = 1 - distance
@@ -197,6 +198,43 @@ def trid_nms(boxes, scores, thresh):
     _, idx = scores.sort(0, descending=True)  # descending表示降序
     boxes_idx = boxes[idx]
     trid = tri_dist(boxes_idx, boxes_idx).triu_(diagonal=1)  # 取上三角矩阵，不包含对角线
+    B = trid
+    while 1:
+        A = B
+        maxA, _ = torch.max(A, dim=0)
+        E = (maxA <= thresh).float().unsqueeze(1).expand_as(A)
+        B = trid.mul(E)
+        if A.equal(B) == True:
+            break
+    keep = idx[maxA <= thresh]
+
+    return keep
+
+def dotd(boxes1, boxes2):
+
+    x_center1 = boxes1[:, None, 0] + (boxes1[:, None, 2] - boxes1[:, None, 0]) / 2.
+    y_center1 = boxes1[:, None, 1] + (boxes1[:, None, 3] - boxes1[:, None, 1]) / 2.
+
+    x_center2 = boxes2[:, None, 0] + (boxes2[:, None, 2] - boxes2[:, None, 0]) / 2.
+    y_center2 = boxes2[:, None, 1] + (boxes2[:, None, 3] - boxes2[:, None, 1]) / 2.
+    x_center2 = x_center2.view(1, -1)
+    y_center2 = y_center2.view(1, -1)
+
+    dist = torch.sqrt((x_center1 - x_center2) ** 2 + (y_center1 - y_center2) ** 2)
+    # dist = torch.max(torch.abs(x_center1 - x_center2), torch.abs(y_center1 - y_center2))
+
+
+    distance = torch.exp(- dist / 35.63)
+
+    # distance越大越好（类似iou,越大越好）
+    return distance
+
+
+def dotd_nms(boxes, scores, thresh):
+
+    _, idx = scores.sort(0, descending=True)  # descending表示降序
+    boxes_idx = boxes[idx]
+    trid = dotd(boxes_idx, boxes_idx).triu_(diagonal=1)  # 取上三角矩阵，不包含对角线
     B = trid
     while 1:
         A = B
